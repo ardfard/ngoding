@@ -1,6 +1,8 @@
 // Boot the v86 Debian image headless in Node and save a memory snapshot, so
 // the browser restores a running system instead of booting Linux (minutes).
-import { writeFileSync } from "node:fs";
+// Output: public/v86/state-<hash>.bin.zst and public/v86/version.json
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { zstdCompressSync, constants } from "node:zlib";
 import { V86 } from "v86";
@@ -70,7 +72,12 @@ await new Promise((ok) => setTimeout(ok, 2000));
 const state = new Uint8Array(await emulator.save_state());
 emulator.stop();
 const zst = zstdCompressSync(state, { params: { [constants.ZSTD_c_compressionLevel]: 15 } });
-writeFileSync(resolve(out, "state.bin.zst"), zst);
+// Name the snapshot by its hash so it can be cached forever; version.json (not
+// cached) points at the current one. Saved student work is tied to this name.
+const name = `state-${createHash("sha256").update(zst).digest("hex").slice(0, 16)}.bin.zst`;
+for (const f of readdirSync(out)) if (/^state(-[0-9a-f]+)?\.bin\.zst$/.test(f)) rmSync(resolve(out, f));
+writeFileSync(resolve(out, name), zst);
+writeFileSync(resolve(out, "version.json"), JSON.stringify({ state: name }) + "\n");
 console.error(`[saved state: ${(state.length / 2 ** 20).toFixed(0)} MiB → ${(zst.length / 2 ** 20).toFixed(1)} MiB zstd, ${elapsed()} total]`);
 clearTimeout(timeout);
 process.exit(0);

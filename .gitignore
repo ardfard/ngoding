@@ -2,4 +2,6 @@ node_modules/
 test/e2e.png
 public/v86/fs.json
 public/v86/flat/
-public/v86/state.bin.zst
+public/v86/state-*.bin.zst
+public/v86/version.json
+.ngoding-secret

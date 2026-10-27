@@ -4,7 +4,7 @@
 import { chromium } from "playwright-core";
 import { readFileSync } from "node:fs";
 
-const URL = process.env.URL ?? "http://localhost:8080/";
+const APP_URL = process.env.URL ?? "http://localhost:8080/";
 const browser = await chromium.launch({ executablePath: process.argv[2] ?? "/usr/bin/chromium" });
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 850 } })).newPage();
 page.on("pageerror", (e) => console.error("pageerror:", e.message));
@@ -40,7 +40,7 @@ const expect = (label, ok, detail) => {
 };
 
 const t0 = Date.now();
-await page.goto(URL);
+await page.goto(APP_URL);
 await page.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 600_000 });
 console.log(`booted in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("$"), null, { timeout: 120_000 });
@@ -75,6 +75,30 @@ await sh("echo after-interrupt", 30_000).then(
   () => expect("Ctrl-C interrupts a running program", true),
   () => expect("Ctrl-C interrupts a running program", false),
 );
+
+// The server holds the solvers: they must not be downloadable, and grading must
+// not accept a made-up session.
+expect("solvers are not served", (await page.request.get(new URL("/problems.js", APP_URL).href)).status() === 404);
+const forged = await page.request.post(new URL("/api/grade", APP_URL).href, {
+  data: { token: "1.AAAAAAAAAAAAAAAAAAAAAA", problemId: "word-freq", output: "x" },
+});
+expect("forged session is rejected", forged.status() === 400);
+
+// Work is saved in the browser and restored after a reload; cached files are
+// not downloaded again.
+await sh("echo persisted-marker > ~/notes.txt");
+await page.evaluate(() => window.ngoding.vm.save());
+await page.reload();
+await page.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 120_000 });
+expect("reload restores saved work", (await page.locator("#status").innerText()).includes("restored"));
+const downloaded = await page.evaluate(() =>
+  performance.getEntriesByType("resource").reduce((sum, e) => sum + e.transferSize, 0));
+expect("reload downloads < 1 MiB (cache)", downloaded < 2 ** 20, `${(downloaded / 2 ** 10).toFixed(0)} KiB`);
+await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("$"));
+await sh("cat ~/notes.txt");
+expect("files survive the reload", (await screen()).includes("persisted-marker"));
+r = await check("Word frequency");
+expect("grading still works after restore", r.startsWith("✓"), r);
 
 await sh("clear; ls ~ ~/output && cat ~/output/word_freq.txt");
 await page.screenshot({ path: "test/e2e.png" });

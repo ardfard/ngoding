@@ -1,25 +1,39 @@
 // Exercise UI: problem tabs, terminal, grading.
 //
-// The VM module provides { async boot(ctx), async readFile(path), async reset() }:
-//  - boot() wires ctx.term to the VM, writes ctx.inputs into it, and resolves
-//    once the student's shell is usable
+// The VM module provides { async boot(ctx), async readFile(path), save(), async reset() }:
+//  - boot() wires ctx.term to the VM, writes ctx.inputs into it (unless it
+//    resumed saved work), and resolves once the student's shell is usable
 //  - readFile() returns the file's text, or null if it doesn't exist
+//  - save() persists the student's work in the browser
 //  - reset() discards whatever the VM persisted in the browser
-import { PROBLEMS, mulberry32, grade } from "./problems.js";
+//
+// Problems, inputs and grading come from the server (/api/session, /api/grade),
+// so expected answers never reach the browser.
 
 const $ = (id) => document.getElementById(id);
 
-export function startApp(vm) {
-  const solved = new Set(JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]"));
-  let seed = Number(localStorage.getItem("ngoding.seed"));
-  if (!seed) {
-    seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
-    localStorage.setItem("ngoding.seed", seed);
+async function post(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? res.statusText);
+  return data;
+}
+
+export async function startApp(vm) {
+  const { token, seed, problems, inputs } = await post("/api/session", {
+    token: localStorage.getItem("ngoding.token"),
+  });
+  if (token !== localStorage.getItem("ngoding.token")) {
+    localStorage.setItem("ngoding.token", token);
+    localStorage.removeItem("ngoding.solved");
   }
-  const inputs = Object.fromEntries(
-    PROBLEMS.map((p, i) => [p.id, p.generate(mulberry32(seed + i * 7919))]),
-  );
-  let current = PROBLEMS[0];
+  const solved = new Set(JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]"));
+  let current = problems[0];
+  let ready = "";
 
   function setStatus(text, cls = "") {
     $("status").textContent = text;
@@ -28,7 +42,7 @@ export function startApp(vm) {
 
   function renderProblem() {
     $("tabs").replaceChildren(
-      ...PROBLEMS.map((p) => {
+      ...problems.map((p) => {
         const b = document.createElement("button");
         b.textContent = p.title;
         b.setAttribute("aria-selected", p === current);
@@ -50,9 +64,10 @@ export function startApp(vm) {
     $("result").className = "";
     $("result").textContent = "Reading output file…";
     try {
-      const actual = await vm.readFile(p.outputFile);
-      const result = grade(p.solve(inputs[p.id]), actual);
-      if (actual === null) result.message = `${p.outputFile.replace("/home/user", "~")} not found.`;
+      const output = await vm.readFile(p.outputFile);
+      const result = output === null
+        ? { ok: false, message: `${p.outputFile.replace("/home/user", "~")} not found.` }
+        : await post("/api/grade", { token, problemId: p.id, output });
       $("result").className = result.ok ? "ok" : "fail";
       $("result").textContent = (result.ok ? "✓ " : "✗ ") + result.message;
       if (result.ok) {
@@ -66,11 +81,12 @@ export function startApp(vm) {
     } finally {
       $("check").disabled = false;
     }
+    vm.save();
   }
 
   async function reset() {
     if (!confirm("Delete all files in the VM and generate new inputs?")) return;
-    localStorage.removeItem("ngoding.seed");
+    localStorage.removeItem("ngoding.token");
     localStorage.removeItem("ngoding.solved");
     await vm.reset();
     location.reload();
@@ -93,11 +109,15 @@ export function startApp(vm) {
   fit.fit();
   addEventListener("resize", () => fit.fit());
 
+  const onSave = ({ savedAt }) =>
+    setStatus(`${ready} · saved ${new Date(savedAt).toLocaleTimeString([], { timeStyle: "short" })}`, "ready");
+
   const t0 = performance.now();
   vm
-    .boot({ term, inputs, setStatus })
-    .then(() => {
-      setStatus(`ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`, "ready");
+    .boot({ term, problems, inputs, session: token, setStatus, onSave })
+    .then(({ restored }) => {
+      ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
+      setStatus(ready, "ready");
       $("check").disabled = false;
       term.focus();
     })

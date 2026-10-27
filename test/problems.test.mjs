@@ -7,7 +7,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PROBLEMS, mulberry32, grade } from "../public/problems.js";
+import { PROBLEMS, mulberry32, grade } from "../lib/problems.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const solutions = { "word-freq": "word_freq.py", "prime-sums": "prime_sums.py" };
@@ -38,4 +38,15 @@ test("grade tolerates trailing whitespace but rejects wrong lines", () => {
   assert.equal(grade("a 1\n", null).ok, false);
   assert.match(grade("a 1\nb 2\n", "a 1\nb 3\n").message, /Line 2/);
   assert.match(grade("a 1\nb 2\n", "a 1\n").message, /ends early/);
+});
+
+test("session tokens round-trip and reject forgeries", async () => {
+  const { sessions } = await import("../lib/session.js");
+  const s = sessions("secret");
+  const { seed, token } = s.create();
+  assert.equal(s.verify(token), seed);
+  assert.equal(s.verify(`${seed + 1}.${token.split(".")[1]}`), null);
+  assert.equal(sessions("other").verify(token), null);
+  assert.equal(s.verify("garbage"), null);
+  assert.equal(s.verify(undefined), null);
 });
