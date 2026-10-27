@@ -1,10 +1,11 @@
 // End-to-end check: boot the VM in headless Chromium, run the Python solutions
 // inside it like a student would, and grade them through the UI.
-// Needs `npm start` running. Usage: node test/e2e.mjs [chromium-path]
+// Needs `npm start` running. Usage: [VM=cheerpx] node test/e2e.mjs [chromium-path]
 import { chromium } from "playwright-core";
 import { readFileSync } from "node:fs";
 
-const URL = process.env.URL ?? "http://localhost:8080/";
+const VM = process.env.VM ?? "v86";
+const URL = `${process.env.URL ?? "http://localhost:8080/"}?vm=${VM}`;
 const browser = await chromium.launch({ executablePath: process.argv[2] ?? "/usr/bin/chromium" });
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 850 } })).newPage();
 page.on("pageerror", (e) => console.error("pageerror:", e.message));
@@ -42,7 +43,7 @@ const expect = (label, ok, detail) => {
 const t0 = Date.now();
 await page.goto(URL);
 await page.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 600_000 });
-console.log(`booted in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`[${VM}] booted in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("$"), null, { timeout: 120_000 });
 
 let r = await check("Word frequency");
@@ -77,6 +78,6 @@ await sh("echo after-interrupt", 30_000).then(
 );
 
 await sh("clear; ls ~ ~/output && cat ~/output/word_freq.txt");
-await page.screenshot({ path: "test/e2e.png" });
+await page.screenshot({ path: `test/e2e-${VM}.png` });
 await browser.close();
 process.exit(failed ? 1 : 0);

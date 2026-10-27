@@ -13,6 +13,10 @@
     <aside>
       <header>
         <h1>ngoding</h1>
+        <nav id="switch" aria-label="Virtual machine">
+          <a href="/?vm=v86" data-vm="v86">v86</a>
+          <a href="/?vm=cheerpx" data-vm="cheerpx">CheerpX</a>
+        </nav>
         <span id="status" class="status">loading…</span>
       </header>
       <nav id="tabs"></nav>
@@ -23,8 +27,8 @@
         <details>
           <summary>Sandbox</summary>
           <p>
-            A Debian VM running in your browser (v86, x86 emulated in WebAssembly).
-            Nothing leaves your machine. Files reset when you reload the page.
+            A Debian VM running in your browser (x86 emulated in WebAssembly).
+            Nothing leaves your machine.
           </p>
           <p>Your input seed: <code id="seed"></code></p>
           <button id="reset" class="danger">Reset VM &amp; new inputs</button>
