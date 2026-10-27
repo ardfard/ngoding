@@ -1,0 +1,118 @@
+:root {
+  --bg: #11140f;
+  --panel: #1a1e17;
+  --line: #2c3326;
+  --fg: #dfe3d6;
+  --muted: #8b937f;
+  --accent: #b5e655;
+  --bad: #ff7a6b;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+}
+
+aside {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  min-height: 0;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 16px 20px 8px;
+}
+
+h1 {
+  margin: 0;
+  font: 600 20px/1 "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--accent);
+}
+
+.status { font-size: 12px; color: var(--muted); }
+.status.ready { color: var(--accent); }
+.status.error { color: var(--bad); }
+
+nav {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+nav button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 8px 4px;
+  margin-right: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+}
+
+nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+nav button.solved::after { content: " ✓"; color: var(--accent); }
+
+article {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 20px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+article h2 { font-size: 17px; }
+article .hint { color: var(--muted); font-size: 13px; }
+code, pre { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+code { color: var(--accent); }
+pre { background: var(--bg); padding: 10px 12px; border: 1px solid var(--line); overflow-x: auto; }
+
+footer { padding: 16px 20px; border-top: 1px solid var(--line); }
+
+button#check, button.danger {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #10140b;
+  font-weight: 600;
+  padding: 10px 14px;
+  width: 100%;
+}
+
+button:disabled { opacity: 0.4; cursor: wait; }
+
+button.danger {
+  background: none;
+  color: var(--bad);
+  border-color: var(--bad);
+  font-weight: 400;
+  padding: 6px 10px;
+  width: auto;
+}
+
+#result { min-height: 1.5em; margin: 10px 0; font-size: 14px; }
+#result.ok { color: var(--accent); }
+#result.fail { color: var(--bad); }
+
+details { font-size: 13px; color: var(--muted); }
+summary { cursor: pointer; }
+
+main#terminal { min-width: 0; min-height: 0; padding: 8px; background: #000; }

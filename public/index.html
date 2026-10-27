@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ngoding — Linux sandbox exercises</title>
+    <link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/vendor/xterm/lib/xterm.js"></script>
+    <script src="/vendor/addon-fit/lib/addon-fit.js"></script>
+    <script type="module" src="/main.js"></script>
+  </head>
+  <body>
+    <aside>
+      <header>
+        <h1>ngoding</h1>
+        <span id="status" class="status">loading…</span>
+      </header>
+      <nav id="tabs"></nav>
+      <article id="problem"></article>
+      <footer>
+        <button id="check" disabled>Check my output</button>
+        <div id="result" role="status"></div>
+        <details>
+          <summary>Sandbox</summary>
+          <p>
+            A Debian VM running in your browser (v86, x86 emulated in WebAssembly).
+            Nothing leaves your machine. Files reset when you reload the page.
+          </p>
+          <p>Your input seed: <code id="seed"></code></p>
+          <button id="reset" class="danger">Reset VM &amp; new inputs</button>
+        </details>
+      </footer>
+    </aside>
+    <main id="terminal"></main>
+  </body>
+</html>
