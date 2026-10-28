@@ -1,14 +1,18 @@
 // Exercise UI: problem tabs, terminal, grading.
 //
-// The VM module provides { async boot(ctx), async readFile(path), save(), async reset() }:
+// The VM module provides { async boot(ctx), async readFile(path), async writeFile(path, text),
+// type(text), save(), async reset() }:
 //  - boot() wires ctx.term to the VM, writes ctx.inputs into it (unless it
 //    resumed saved work), and resolves once the student's shell is usable
 //  - readFile() returns the file's text, or null if it doesn't exist
+//  - writeFile() writes a file owned by the student; type() sends keystrokes to the shell
 //  - save() persists the student's work in the browser
 //  - reset() discards whatever the VM persisted in the browser
 //
 // Problems, inputs and grading come from the server (/api/session, /api/grade),
 // so expected answers never reach the browser.
+
+import { createEditor } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,6 +38,7 @@ export async function startApp(vm) {
   const solved = new Set(JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]"));
   let current = problems[0];
   let ready = "";
+  let booted = false;
 
   function setStatus(text, cls = "") {
     $("status").textContent = text;
@@ -51,6 +56,7 @@ export async function startApp(vm) {
           current = p;
           $("result").textContent = "";
           renderProblem();
+          if (booted && editorOn) editor.open(current);
         };
         return b;
       }),
@@ -92,10 +98,35 @@ export async function startApp(vm) {
     location.reload();
   }
 
+  // The editor works on the current problem's solution file and can be hidden
+  // (remembered per browser).
+  const editor = createEditor({
+    parent: $("editor"),
+    vm,
+    onStatus: (text, cls) => {
+      $("editor-status").textContent = text;
+      $("editor-status").className = cls;
+    },
+  });
+  let editorOn = localStorage.getItem("ngoding.editor") !== "off";
+
+  function showEditor(on) {
+    editorOn = on;
+    localStorage.setItem("ngoding.editor", on ? "on" : "off");
+    $("workspace").classList.toggle("editor-on", on);
+    $("editor-toggle").setAttribute("aria-pressed", on);
+    if (on && booted) editor.open(current).then(editor.focus);
+  }
+
   $("seed").textContent = seed;
   $("check").onclick = check;
   $("reset").onclick = reset;
+  $("editor-toggle").onclick = () => showEditor(!editorOn);
+  $("editor-save").onclick = () => editor.save();
+  $("editor-run").onclick = () => editor.run();
+  addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());
   renderProblem();
+  showEditor(editorOn);
 
   const term = new Terminal({
     cursorBlink: true,
@@ -107,7 +138,8 @@ export async function startApp(vm) {
   term.loadAddon(fit);
   term.open($("terminal"));
   fit.fit();
-  addEventListener("resize", () => fit.fit());
+  // Refit when the window or the editor split changes the terminal's size.
+  new ResizeObserver(() => fit.fit()).observe($("terminal"));
 
   const onSave = ({ savedAt }) =>
     setStatus(`${ready} · saved ${new Date(savedAt).toLocaleTimeString([], { timeStyle: "short" })}`, "ready");
@@ -119,6 +151,9 @@ export async function startApp(vm) {
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       setStatus(ready, "ready");
       $("check").disabled = false;
+      $("editor-save").disabled = $("editor-run").disabled = false;
+      booted = true;
+      if (editorOn) editor.open(current);
       term.focus();
     })
     .catch((e) => {
@@ -128,5 +163,5 @@ export async function startApp(vm) {
     });
 
   // Handy for debugging / automated tests.
-  window.ngoding = { vm, check, inputs, seed };
+  window.ngoding = { vm, check, inputs, seed, editor };
 }

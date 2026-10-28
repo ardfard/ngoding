@@ -9,15 +9,28 @@ FROM --platform=linux/386 i386/debian:bookworm AS rootfs
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_VERSION=0.13.6
 
+# Keep the image small: no docs, man pages (there's no man), or translations.
+# Copyright files stay, since the image redistributes GPL software.
+RUN printf '%s\n' \
+        'path-exclude /usr/share/doc/*' \
+        'path-include /usr/share/doc/*/copyright' \
+        'path-exclude /usr/share/man/*' \
+        'path-exclude /usr/share/info/*' \
+        'path-exclude /usr/share/locale/*' \
+        'path-exclude /usr/share/lintian/*' \
+        > /etc/dpkg/dpkg.cfg.d/01-ngoding-slim
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
         linux-image-686 initramfs-tools tini \
         python3 python3-venv python3-pip python3-numpy \
         bash-completion ca-certificates curl git less nano vim-tiny \
-        procps file tree sudo locales \
+        procps file tree sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Boot with the root filesystem on 9p (adapted from v86's tools/docker/debian)
+# Boot with the root filesystem on 9p (adapted from v86's tools/docker/debian).
+# The initramfs only needs the modules listed here, not the default "most".
 RUN printf '%s\n' 9p 9pnet 9pnet_virtio virtio virtio_ring virtio_pci >> /etc/initramfs-tools/modules \
+    && sed -i 's/^MODULES=.*/MODULES=list/' /etc/initramfs-tools/initramfs.conf \
     && printf '%s\n' \
         '#!/bin/sh' \
         'case $1 in prereqs) exit 0;; esac' \
@@ -28,6 +41,19 @@ RUN printf '%s\n' 9p 9pnet 9pnet_virtio virtio virtio_ring virtio_pci >> /etc/in
     && chmod +x /etc/initramfs-tools/scripts/boot-9p \
     && echo 'BOOT=boot-9p' >> /etc/initramfs-tools/initramfs.conf \
     && update-initramfs -u
+
+# Drop drivers for hardware v86 doesn't emulate, keeping ne2k (8390) for the
+# optional network relay. udev never runs after boot, so its hardware database
+# is unused too (the initramfs has its own copy).
+RUN cd /usr/lib/modules/*/kernel \
+    && rm -rf sound \
+        drivers/gpu drivers/media drivers/usb drivers/scsi drivers/infiniband drivers/staging \
+        drivers/iio drivers/comedi drivers/hwmon drivers/bluetooth drivers/isdn drivers/mmc \
+        drivers/net/wireless drivers/net/usb drivers/net/can \
+        net/wireless net/mac80211 net/bluetooth \
+    && find drivers/net/ethernet -mindepth 1 -maxdepth 1 ! -name 8390 -exec rm -rf {} + \
+    && depmod "$(basename "$(dirname "$PWD")")" \
+    && rm -rf /usr/lib/udev/hwdb.bin /usr/lib/udev/hwdb.d
 
 # uv: astral publishes an i686 build
 RUN curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-i686-unknown-linux-gnu.tar.gz" \

@@ -45,6 +45,14 @@ await page.waitForFunction(() => document.getElementById("status").textContent.s
 console.log(`booted in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("$"), null, { timeout: 120_000 });
 
+const editorText = () => page.evaluate(() => window.ngoding.editor.view.state.doc.toString());
+const editorStatus = () => page.locator("#editor-status").innerText();
+await page.waitForFunction(() => document.getElementById("editor-status").textContent.includes("·") &&
+  !document.getElementById("editor-status").textContent.includes("loading"));
+expect("editor starts a new file from a template",
+  (await editorText()).includes("challenge/word-freq/input.txt") && (await editorStatus()).includes("~/word_freq.py · new file"),
+  await editorStatus());
+
 let r = await check("Word frequency");
 expect("missing output is reported", r.includes("not found"), r);
 
@@ -76,6 +84,42 @@ await sh("echo after-interrupt", 30_000).then(
   () => expect("Ctrl-C interrupts a running program", false),
 );
 
+// The editor shows the current problem's file, which the terminal just wrote.
+await page.getByRole("button", { name: "Prime sums" }).click();
+await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
+expect("editor loads the file from the VM", (await editorText()) === readFileSync("test/solutions/prime_sums.py", "utf8"));
+
+// Autocomplete offers builtins and names defined in the file.
+await page.evaluate(() => {
+  const { view } = window.ngoding.editor;
+  const insert = 'message = "from-" + "editor"\n';
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert }, selection: { anchor: insert.length } });
+});
+await page.locator(".cm-content").focus();
+const complete = async (typed, label) => {
+  await page.keyboard.type(typed);
+  await page.locator(".cm-tooltip-autocomplete li", { hasText: label }).first().waitFor({ timeout: 10_000 });
+  // Pick the option by label: the first suggestion isn't necessarily the one we want.
+  while (!(await page.locator(".cm-tooltip-autocomplete li[aria-selected]").innerText()).startsWith(label)) {
+    await page.keyboard.press("ArrowDown");
+  }
+  await page.keyboard.press("Enter");
+};
+await complete("pri", "print");
+await complete("(mess", "message");
+expect("autocomplete completes builtins and local names", (await editorText()).endsWith("print(message)"), await editorText());
+expect("edits are marked unsaved", (await editorStatus()).includes("modified"));
+
+// Ctrl-Enter saves the file and runs it in the terminal.
+await page.keyboard.press("Control+Enter");
+await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("from-editor"), null, { timeout: 60_000 })
+  .then(() => expect("Ctrl-Enter saves and runs the file", true), () => expect("Ctrl-Enter saves and runs the file", false));
+expect("saved status shown", (await editorStatus()).endsWith("· saved"), await editorStatus());
+
+// The editor can be hidden; the choice is remembered (checked after the reload).
+await page.getByRole("button", { name: "Editor" }).click();
+expect("editor can be hidden", !(await page.locator("#editor").isVisible()) && !(await page.locator("#editor-run").isVisible()));
+
 // The server holds the solvers: they must not be downloadable, and grading must
 // not accept a made-up session.
 expect("solvers are not served", (await page.request.get(new URL("/problems.js", APP_URL).href)).status() === 404);
@@ -99,6 +143,13 @@ await sh("cat ~/notes.txt");
 expect("files survive the reload", (await screen()).includes("persisted-marker"));
 r = await check("Word frequency");
 expect("grading still works after restore", r.startsWith("✓"), r);
+
+expect("hidden editor stays hidden after reload", !(await page.locator("#editor").isVisible()));
+await page.getByRole("button", { name: "Prime sums" }).click();
+await page.getByRole("button", { name: "Editor" }).click();
+await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
+expect("file saved from the editor survives the reload", (await editorText()).endsWith("print(message)\n") ||
+  (await editorText()).endsWith("print(message)"), await editorText());
 
 await sh("clear; ls ~ ~/output && cat ~/output/word_freq.txt");
 await page.screenshot({ path: "test/e2e.png" });

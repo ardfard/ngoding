@@ -31,6 +31,15 @@
         </details>
       </footer>
     </aside>
-    <main id="terminal"></main>
+    <div id="workspace" class="editor-on">
+      <div id="toolbar">
+        <button id="editor-toggle" aria-pressed="true" title="Show or hide the editor">Editor</button>
+        <span id="editor-status"></span>
+        <button id="editor-save" class="editor-only" title="Save (Ctrl-S)" disabled>Save</button>
+        <button id="editor-run" class="editor-only" title="Save and run in the terminal (Ctrl-Enter)" disabled>Run ▸</button>
+      </div>
+      <section id="editor" class="editor-only"></section>
+      <main id="terminal"></main>
+    </div>
   </body>
 </html>

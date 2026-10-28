@@ -160,6 +160,19 @@ export async function readFile(path) {
   return status === 0 ? fromBase64(data) : null;
 }
 
+// Write a file as the student, e.g. from the editor. Resolves to true on success.
+export async function writeFile(path, text) {
+  dirty = true;
+  const { status } = await agent("write", path, toBase64(encoder.encode(text)));
+  return status === 0;
+}
+
+// Send keystrokes to the student's shell, as if typed in the terminal.
+export function type(text) {
+  dirty = true;
+  emulator.serial_send_bytes(0, encoder.encode(text));
+}
+
 export async function reset() {
   await store.del(SAVE_KEY);
 }

@@ -14,7 +14,7 @@ and does two cheap JSON calls: starting a session and grading a submitted output
 
 ```
 ┌──────────── browser tab ──────────────────────────────────────────────────┐
-│ ui.js: problems, [Check]           │  xterm.js ⇄ serial port 1 (ttyS0)     │
+│ ui.js: problems, [Check], editor   │  xterm.js ⇄ serial port 1 (ttyS0)     │
 │                                    │                                       │
 │ vm.js: boot / readFile / save  ────┼─► serial port 2 ⇄ root agent in the   │
 │   save → IndexedDB snapshot        │   guest: write inputs, read outputs   │
@@ -22,23 +22,39 @@ and does two cheap JSON calls: starting a session and grading a submitted output
 └──────────────┬────────────────────────────────────────────────────────────┘
                │ POST /api/session → token, problems, inputs
                │ POST /api/grade   {token, problemId, output} → ok / message
-┌──────────────┴──────────────── server.mjs ────────────────────────────────┐
-│ static files (cached) + lib/problems.js (solvers) + lib/session.js (HMAC)  │
+┌──────────────┴──────────────── src/main.rs (Rust) ────────────────────────┐
+│ static files (cached) + src/problems.rs (solvers) + src/session.rs (HMAC)  │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Run it
 
 ```sh
-npm install
-npm run build:image   # docker + node: public/v86/{fs.json,flat/,state-<hash>.bin.zst} (~300 MB)
-npm start             # http://localhost:8080
-npm test              # checks the JS reference solvers against Python solutions
+npm install           # browser deps (xterm.js, v86), embedded by cargo; Playwright for e2e
+npm run build:image   # docker + node: public/v86/{fs.json,flat/,state-<hash>.bin.zst} (~220 MB)
+npm start             # cargo run --release: http://localhost:8080
+npm test              # cargo test: checks the reference solvers against Python solutions
 npm run test:e2e      # with the server running: boots the VM in headless Chromium,
                       # solves both problems in the shell, grades them, runs uv,
-                      # checks Ctrl-C, server-side grading, saving + restoring work,
+                      # checks Ctrl-C, the editor (autocomplete, run), server-side
+                      # grading, saving + restoring work,
                       # and that a reload is served from cache
 ```
+
+## Deploy
+
+`cargo build --release` produces one ~8 MB binary, `target/release/ngoding`, with the
+app (HTML/JS/CSS, xterm.js, v86's wasm, the BIOS) compiled in; run `npm install` first.
+The VM image stays on disk, so it can be rebuilt without rebuilding the server. Copy
+`fs.json`, `flat/`, `version.json` and `state-*.bin.zst` from `public/v86/` and run:
+
+```sh
+NGODING_IMAGE_DIR=/srv/ngoding/image NGODING_SECRET=... PORT=8080 ./ngoding
+```
+
+`NGODING_IMAGE_DIR` defaults to `public/v86`, and is served at `/v86/`. Only the
+embedded files and that directory are served. Without `NGODING_SECRET`, the secret is
+kept in `.ngoding-secret` in the working directory.
 
 Starting a shell takes about 1 s and downloads about 18 MiB (mostly the snapshot).
 Files are then fetched as they're used: ~22 MiB after the first `python3`, ~78 MiB after
@@ -49,7 +65,7 @@ which is fine for exercises.
 
 The server does no emulation and no student code execution. Per student it serves
 static files and answers a couple of tiny JSON requests, so a cheap static host or a CDN
-in front of `server.mjs` handles a whole class.
+in front of the server handles a whole class.
 
 - Files under `/v86/flat/` are named by content hash, and the snapshot is
   `state-<hash>.bin.zst`. Both are served with `Cache-Control: immutable` (one year).
@@ -81,11 +97,13 @@ enabled.
   (vendored in `image/tools/`) turn it into a file index plus content-addressed,
   zstd-compressed files. The result is exported as a single tar, because Docker's
   local exporter hangs on tens of thousands of files.
+- The image is trimmed: no docs (except copyright files), man pages, translations, or
+  locale data; kernel modules only for hardware v86 emulates; a list-only initramfs.
 - `init.sh` is PID 1 (under `tini`) instead of systemd. It mounts the usual
   filesystems, starts the agent, and autologs `user` in on `ttyS0`. agetty runs under
   `setsid` so the shell gets a controlling terminal; without it, Ctrl-C doesn't work.
 - `build-state.mjs` boots the image in Node (~15 s), waits for the shell, and saves a
-  memory snapshot (45 MiB → 15 MiB zstd) as `state-<hash>.bin.zst`, plus
+  memory snapshot (44 MiB → 14 MiB zstd) as `state-<hash>.bin.zst`, plus
   `version.json`. The memory size is shared with the browser via
   `public/v86-config.js`, because a snapshot only restores into a VM with the same
   memory size.
@@ -104,15 +122,34 @@ enabled.
   server stores nothing: it regenerates inputs and expected answers from the seed.
 - The browser receives the problem text and its inputs, which are written to
   `~/challenge/<problem>/input.txt` through the agent. The reference solvers live in
-  `lib/problems.js` and are never served.
+  `src/problems.rs` and are compiled into the server, never served.
 - **Check** reads the output file through the agent and posts it to `/api/grade`. The
   server compares it line by line with the expected output, ignoring trailing
   whitespace, and returns only pass/fail and a hint about the first wrong line.
 - The signing secret comes from `NGODING_SECRET`, or `.ngoding-secret`, which is
   created on first start. Keep it stable, or every token becomes invalid.
 
-Add a problem by appending to `PROBLEMS` in `lib/problems.js` (`generate(rng)` and
-`solve(input)`), then add a Python solution and a test case under `test/`.
+Add a problem by appending to `PROBLEMS` in `src/problems.rs` (`generate(rng)` and
+`solve(input)`), then add a Python solution as `test/solutions/<id>.py` (dashes become
+underscores); `cargo test` checks it against the solver.
+
+## The editor
+
+Above the terminal is a Python editor (CodeMirror 6) for the current problem's solution
+file, `~/word_freq.py` or `~/prime_sums.py` (`solution_file` in `src/problems.rs`). A new
+file starts from a template that reads the input and writes the output file.
+
+- The file lives in the VM. The editor reads and writes it through the agent, so
+  the terminal sees the same file. Switching problems keeps unsaved edits; otherwise
+  the file is reloaded, so changes made with vim in the terminal show up.
+- **Ctrl-S** saves, and **Ctrl-Enter** (or **Run**) saves and runs `python3 <file>` in the
+  terminal. Leaving the page with unsaved edits asks for confirmation.
+- Autocomplete comes from CodeMirror's Python support: keywords, builtins, snippets,
+  and names defined in the file. It doesn't know about imported modules (e.g.
+  `numpy.` members); that would need a language server such as jedi running in the VM.
+- The **Editor** button hides or shows it; the choice is remembered in `localStorage`.
+- `npm install` bundles CodeMirror into `public/codemirror.js` with esbuild
+  (`npm run build:editor`, entry point `editor/codemirror.js`), which the binary embeds.
 
 ## Saving work
 
@@ -145,7 +182,8 @@ reload resumes exactly where the student was, including running programs, in abo
 
 Apache License 2.0; see `LICENSE` and `NOTICE`. Third-party parts keep their own
 licenses: v86's tools in `image/tools/` (BSD 2-Clause), SeaBIOS in `public/v86/bios/`
-(LGPL v3), and the npm packages served to browsers (v86: BSD 2-Clause, xterm.js: MIT).
+(LGPL v3), and the npm packages served to browsers (v86: BSD 2-Clause, xterm.js: MIT,
+CodeMirror: MIT).
 
 The built VM image (`npm run build:image`) contains Debian packages under their own
 licenses, mostly GPL. If you host the image publicly, the GPL requires you to make the
