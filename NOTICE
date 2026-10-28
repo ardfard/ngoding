@@ -1,0 +1,15 @@
+ngoding
+Copyright 2026 Ardin Fardiansyah
+
+This product includes software developed by others:
+
+- v86 (https://github.com/copy/v86), BSD 2-Clause License.
+  image/tools/fs2json.py and image/tools/copy-to-sha256.py are copied from v86;
+  see image/tools/LICENSE.v86. The v86 emulator itself (installed from npm) is
+  served to browsers at runtime.
+
+- SeaBIOS (https://www.seabios.org/), GNU LGPL v3.
+  public/v86/bios/*.bin; see public/v86/bios/README.md.
+
+- xterm.js (https://github.com/xtermjs/xterm.js), MIT License.
+  Installed from npm and served to browsers at runtime.

@@ -140,3 +140,14 @@ reload resumes exactly where the student was, including running programs, in abo
   real course, `/api/grade` should record results per student, which needs a login.
 - Serve over HTTPS outside localhost. Any static file host works; no special headers
   are needed.
+
+## License
+
+Apache License 2.0; see `LICENSE` and `NOTICE`. Third-party parts keep their own
+licenses: v86's tools in `image/tools/` (BSD 2-Clause), SeaBIOS in `public/v86/bios/`
+(LGPL v3), and the npm packages served to browsers (v86: BSD 2-Clause, xterm.js: MIT).
+
+The built VM image (`npm run build:image`) contains Debian packages under their own
+licenses, mostly GPL. If you host the image publicly, the GPL requires you to make the
+corresponding source available. Pointing to the Debian bookworm source archive for the
+exact package versions is the usual way to do that.
