@@ -1,10 +1,11 @@
 // Python editor (CodeMirror 6) for the current problem's solution file. The file
 // lives in the VM and is read and written through the VM agent, so the editor
 // and the terminal work on the same file. Autocomplete comes from CodeMirror's
-// Python support: keywords, builtins, and names defined in the file.
+// Python support: keywords, builtins, and names defined in the file. Vim mode
+// (@replit/codemirror-vim) can be switched on, with :w to save.
 import {
-  EditorState, EditorView, HighlightStyle, basicSetup, indentUnit, indentWithTab,
-  keymap, Prec, python, syntaxHighlighting, tags as t,
+  Compartment, EditorState, EditorView, HighlightStyle, Vim, basicSetup, indentUnit,
+  indentWithTab, keymap, Prec, python, syntaxHighlighting, tags as t, vim,
 } from "./codemirror.js";
 
 const theme = EditorView.theme({
@@ -20,6 +21,12 @@ const theme = EditorView.theme({
   ".cm-tooltip": { backgroundColor: "#1a1e17", border: "1px solid #2c3326", color: "#dfe3d6" },
   ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "#b5e655", color: "#10140b" },
   ".cm-completionDetail": { color: "#8b937f" },
+  // !important: the vim plugin styles its cursor with a highest-precedence theme.
+  ".cm-fat-cursor": { background: "#b5e655 !important", color: "#10140b" },
+  "&:not(.cm-focused) .cm-fat-cursor": { background: "none !important", outline: "solid 1px #b5e655 !important" },
+  ".cm-panels": { backgroundColor: "#1a1e17", color: "#dfe3d6" },
+  ".cm-panels-bottom": { borderTop: "1px solid #2c3326" },
+  ".cm-vim-panel": { fontFamily: '"IBM Plex Mono", ui-monospace, monospace', fontSize: "12px", padding: "2px 10px" },
 }, { dark: true });
 
 const highlight = HighlightStyle.define([
@@ -49,15 +56,19 @@ output_path.write_text(answer)
 
 const home = (path) => path.replace(/^\/home\/user(?=\/|$)/, "~");
 
-// ctx: { parent, vm, onStatus(text, cls) }. Call open(problem) to show a
+// ctx: { parent, vm, onStatus(text, cls), vim }. Call open(problem) to show a
 // problem's file; until then (and while the VM boots) the editor is read-only.
-export function createEditor({ parent, vm, onStatus }) {
+export function createEditor({ parent, vm, onStatus, vim: vimOn = false }) {
   // path -> { state, saved, template }: one buffer per file, so switching
   // problems keeps unsaved edits. saved is the text in the VM, or null if the
   // file doesn't exist yet.
   const files = new Map();
   let current = null; // { path, problem }
   let opening = 0;
+  // Every file's state carries this, so vim mode can be switched in all of them.
+  const vimMode = new Compartment();
+  const vimExtension = () => (vimOn ? vim({ status: true }) : []);
+  Vim.defineEx("write", "w", () => save());
 
   const view = new EditorView({ parent, state: makeState("", true) });
 
@@ -65,6 +76,7 @@ export function createEditor({ parent, vm, onStatus }) {
     return EditorState.create({
       doc,
       extensions: [
+        vimMode.of(vimExtension()), // before basicSetup, so vim sees keys first
         basicSetup,
         python(),
         indentUnit.of("    "),
@@ -139,5 +151,12 @@ export function createEditor({ parent, vm, onStatus }) {
 
   const hasUnsaved = () => [...files.keys()].some(isDirty);
 
-  return { open, save, run, hasUnsaved, view, focus: () => view.focus() };
+  function setVim(on) {
+    vimOn = on;
+    const effects = vimMode.reconfigure(vimExtension());
+    view.dispatch({ effects });
+    for (const [path, f] of files) if (path !== current?.path) f.state = f.state.update({ effects }).state;
+  }
+
+  return { open, save, run, hasUnsaved, setVim, view, focus: () => view.focus() };
 }

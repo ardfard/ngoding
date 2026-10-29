@@ -103,6 +103,8 @@ const complete = async (typed, label) => {
   while (!(await page.locator(".cm-tooltip-autocomplete li[aria-selected]").innerText()).startsWith(label)) {
     await page.keyboard.press("ArrowDown");
   }
+  // CodeMirror ignores Enter for 75 ms after the list opens (interactionDelay).
+  await page.waitForTimeout(200);
   await page.keyboard.press("Enter");
 };
 await complete("pri", "print");
@@ -115,6 +117,20 @@ await page.keyboard.press("Control+Enter");
 await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("from-editor"), null, { timeout: 60_000 })
   .then(() => expect("Ctrl-Enter saves and runs the file", true), () => expect("Ctrl-Enter saves and runs the file", false));
 expect("saved status shown", (await editorStatus()).endsWith("· saved"), await editorStatus());
+
+// Vim mode: normal-mode commands work and :w saves. It stays on across the
+// reload (checked below).
+await page.getByRole("button", { name: "Vim" }).click();
+await page.locator(".cm-vim-panel").waitFor({ timeout: 10_000 });
+await page.keyboard.press("Escape");
+await page.keyboard.type("ggO# vim-edit");
+await page.keyboard.press("Escape");
+await page.keyboard.type(":w");
+await page.keyboard.press("Enter");
+await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
+await sh("head -1 ~/prime_sums.py");
+expect("vim mode edits and saves with :w", (await editorText()).startsWith("# vim-edit\n") && (await screen()).includes("\n# vim-edit"),
+  (await editorText()).split("\n")[0]);
 
 // The editor can be hidden; the choice is remembered (checked after the reload).
 await page.getByRole("button", { name: "Editor" }).click();
@@ -148,6 +164,14 @@ expect("hidden editor stays hidden after reload", !(await page.locator("#editor"
 await page.getByRole("button", { name: "Prime sums" }).click();
 await page.getByRole("button", { name: "Editor" }).click();
 await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
+expect("vim mode stays on after reload", await page.locator(".cm-vim-panel").isVisible());
+await page.getByRole("button", { name: "Vim" }).click();
+await page.locator(".cm-content").focus();
+await page.keyboard.press("Control+End");
+await page.keyboard.type("x");
+expect("vim mode can be switched off", !(await page.locator(".cm-vim-panel").isVisible()) && (await editorText()).endsWith("x"),
+  JSON.stringify((await editorText()).slice(-20)));
+await page.keyboard.press("Backspace");
 expect("file saved from the editor survives the reload", (await editorText()).endsWith("print(message)\n") ||
   (await editorText()).endsWith("print(message)"), await editorText());
 

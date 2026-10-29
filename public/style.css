@@ -115,6 +115,10 @@ button.danger {
 details { font-size: 13px; color: var(--muted); }
 summary { cursor: pointer; }
 
+.credits { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+.credits a { color: var(--muted); }
+.credits a:hover { color: var(--accent); }
+
 #workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 #workspace:not(.editor-on) .editor-only { display: none; }
 
@@ -138,7 +142,7 @@ summary { cursor: pointer; }
 }
 
 #toolbar button:hover:not(:disabled) { border-color: var(--muted); }
-#editor-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+#toolbar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 #editor-run { border-color: var(--accent) !important; color: var(--accent) !important; }
 
 #editor-status {

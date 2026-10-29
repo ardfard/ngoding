@@ -29,12 +29,18 @@
           <p>Your session: <code id="seed"></code></p>
           <button id="reset" class="danger">Reset VM &amp; new inputs</button>
         </details>
+        <p class="credits">
+          © 2026 ardfard ·
+          <a href="https://github.com/ardfard/ngoding/blob/main/LICENSE">Apache-2.0</a> ·
+          <a href="https://github.com/ardfard/ngoding">Fork me on GitHub</a>
+        </p>
       </footer>
     </aside>
     <div id="workspace" class="editor-on">
       <div id="toolbar">
         <button id="editor-toggle" aria-pressed="true" title="Show or hide the editor">Editor</button>
         <span id="editor-status"></span>
+        <button id="vim-toggle" class="editor-only" aria-pressed="false" title="Vim keybindings (:w saves)">Vim</button>
         <button id="editor-save" class="editor-only" title="Save (Ctrl-S)" disabled>Save</button>
         <button id="editor-run" class="editor-only" title="Save and run in the terminal (Ctrl-Enter)" disabled>Run ▸</button>
       </div>

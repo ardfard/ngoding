@@ -98,9 +98,11 @@ export async function startApp(vm) {
     location.reload();
   }
 
-  // The editor works on the current problem's solution file and can be hidden
-  // (remembered per browser).
+  // The editor works on the current problem's solution file. It can be hidden,
+  // and vim mode switched on (both remembered per browser).
+  let vimOn = localStorage.getItem("ngoding.vim") === "on";
   const editor = createEditor({
+    vim: vimOn,
     parent: $("editor"),
     vm,
     onStatus: (text, cls) => {
@@ -122,6 +124,14 @@ export async function startApp(vm) {
   $("check").onclick = check;
   $("reset").onclick = reset;
   $("editor-toggle").onclick = () => showEditor(!editorOn);
+  $("vim-toggle").setAttribute("aria-pressed", vimOn);
+  $("vim-toggle").onclick = () => {
+    vimOn = !vimOn;
+    localStorage.setItem("ngoding.vim", vimOn ? "on" : "off");
+    $("vim-toggle").setAttribute("aria-pressed", vimOn);
+    editor.setVim(vimOn);
+    editor.focus();
+  };
   $("editor-save").onclick = () => editor.save();
   $("editor-run").onclick = () => editor.run();
   addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());

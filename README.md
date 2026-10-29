@@ -147,7 +147,9 @@ file starts from a template that reads the input and writes the output file.
 - Autocomplete comes from CodeMirror's Python support: keywords, builtins, snippets,
   and names defined in the file. It doesn't know about imported modules (e.g.
   `numpy.` members); that would need a language server such as jedi running in the VM.
-- The **Editor** button hides or shows it; the choice is remembered in `localStorage`.
+- **Vim** switches on Vim keybindings (@replit/codemirror-vim), with `:w` to save.
+- The **Editor** and **Vim** buttons toggle each; both choices are remembered in
+  `localStorage`.
 - `npm install` bundles CodeMirror into `public/codemirror.js` with esbuild
   (`npm run build:editor`, entry point `editor/codemirror.js`), which the binary embeds.
 
@@ -183,7 +185,7 @@ reload resumes exactly where the student was, including running programs, in abo
 Apache License 2.0; see `LICENSE` and `NOTICE`. Third-party parts keep their own
 licenses: v86's tools in `image/tools/` (BSD 2-Clause), SeaBIOS in `public/v86/bios/`
 (LGPL v3), and the npm packages served to browsers (v86: BSD 2-Clause, xterm.js: MIT,
-CodeMirror: MIT).
+CodeMirror and its Vim mode: MIT).
 
 The built VM image (`npm run build:image`) contains Debian packages under their own
 licenses, mostly GPL. If you host the image publicly, the GPL requires you to make the
