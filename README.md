@@ -1,27 +1,35 @@
 # ngoding — coding exercises in an in-browser Linux sandbox (PoC)
 
-Students get a coding problem and a real Debian shell running **in their browser**.
-They write and run Python in `~`, their program writes an answer file, and the page
-reads that file out of the VM and grades it.
+The app has two pages that share the same in-browser Debian VM:
+
+- **`/play`** (and **`/`**, which redirects there) is a small IDE: file tree under
+  `~/`, editor tabs, **Run**, and an auto-detected **Build** command you can override.
+  Nothing is graded.
+- **`/problems`** is the exercise mode: pick a problem, edit its solution file, run it
+  in the shell, and **Check** sends the output to the server for grading.
+
+Play and Problems each keep their own VM snapshot in IndexedDB (`vm:play` vs
+`vm:problems`), so sandbox experiments do not overwrite exercise work.
 
 The VM is [v86](https://github.com/copy/v86), a BSD-licensed emulator of a full x86 PC
 that JIT-compiles to WebAssembly. It runs a real Debian kernel. The root filesystem is
 served over 9p, one file at a time over HTTP, and the browser resumes from a memory
 snapshot taken after boot, so students never wait for Linux to start.
 
-**All compute happens in the student's browser.** The server only serves static files
-and does two cheap JSON calls: starting a session and grading a submitted output file.
+**All compute happens in the student's browser.** The server serves static files; on
+`/problems` it also handles two small JSON calls to start a session and grade output.
 
 ```
 ┌──────────── browser tab ──────────────────────────────────────────────────┐
-│ ui.js: problems, [Check], editor   │  ghostty-web ⇄ serial port 1 (ttyS0)  │
-│                                    │                                       │
-│ vm.js: boot / readFile / save  ────┼─► serial port 2 ⇄ root agent in the   │
-│   save → IndexedDB snapshot        │   guest: write inputs, read outputs   │
+│ /play: play-ui.js — tree, tabs, Run/Build                          │ ttyS0 │
+│ /problems: ui.js — problems, [Check], editor        ghostty-web ⇄ shell   │
+│                                                                               │
+│ vm.js: boot / readFile / save (key vm:play | vm:problems) ──┼─► ttyS1     │
+│   save → IndexedDB                         root agent: FS + grade I/O       │
 │ v86 (wasm) ── 9p root fs ── fetches /v86/flat/<hash>.bin.zst on demand     │
 └──────────────┬────────────────────────────────────────────────────────────┘
-               │ POST /api/session → token, problems, inputs
-               │ POST /api/grade   {token, problemId, output} → ok / message
+               │ /problems only: POST /api/session → token, problems, inputs
+               │                POST /api/grade   {token, problemId, output}
 ┌──────────────┴──────────────── src/main.rs (Rust) ────────────────────────┐
 │ static files (cached) + src/problems.rs (solvers) + src/session.rs (HMAC)  │
 └───────────────────────────────────────────────────────────────────────────┘
@@ -32,11 +40,13 @@ and does two cheap JSON calls: starting a session and grading a submitted output
 ```sh
 npm install           # browser deps (ghostty-web, v86), embedded by cargo; Playwright for e2e
 npm run build:image   # docker + node: public/v86/{fs.json,flat/,state-<hash>.bin.zst} (~220 MB)
-npm start             # cargo run --release: http://localhost:8080
+                      # run again after changing image/agent.sh (new agent verbs, etc.)
+npm start             # cargo run --release: http://localhost:8080  → /play and /problems
 npm test              # cargo test: checks the reference solvers against Python solutions
+npm run test:unit     # node --test: build detection, language helpers (no VM)
 npm run test:e2e      # with the server running: boots the VM in headless Chromium,
-                      # solves both problems in the shell, grades them, runs uv,
-                      # checks Ctrl-C, the editor (autocomplete, run), server-side
+                      # Play + Problems (separate saves), solves both problems, grades them,
+                      # runs uv, checks Ctrl-C, the editor (autocomplete, run), server-side
                       # grading, saving + restoring work,
                       # and that a reload is served from cache
 ```
@@ -109,11 +119,16 @@ enabled.
   `public/v86-config.js`, because a snapshot only restores into a VM with the same
   memory size.
 - `agent.sh` runs as root on the second serial port and accepts a fixed set of verbs:
-  - `write`: push a challenge input file
-  - `read`: fetch an output file for grading
+  - `write`: push a file (challenge inputs on Problems, editor saves on both pages)
+  - `read`: fetch file contents (grading outputs, editor loads)
+  - `ls`: list one directory (names and `d`/`f` type), for the Play file tree
+  - `mkdir`, `rm`, `mv`: change the tree under `/home/user`
   - `resize`: match the tty to the browser terminal
   - `init`: set the clock and add fresh entropy, since every visitor restores the
     same snapshot
+
+  Rebuild the image (`npm run build:image`) after changing this script so the guest
+  VM picks up new verbs.
 
 ## How grading works
 
@@ -136,16 +151,27 @@ underscores); `cargo test` checks it against the solver.
 
 ## The editor
 
-Above the terminal is a CodeMirror 6 editor for the current problem's solution file
-(e.g. `~/word_freq.py`; the base name comes from `solution_file` in `src/problems.rs`).
-A **Language** select (Python, C, C++, Go, Rust, Haskell) is global: every problem uses
-the same language, remembered in `localStorage`. Changing it swaps the file extension
-(`.py` / `.c` / `.cpp` / `.go` / `.rs` / `.hs`), syntax mode, and starter template.
+Both pages use CodeMirror 6 above the terminal. Files live in the VM; the editor
+reads and writes through the agent, so the shell always sees the same bytes.
 
-- The file lives in the VM. The editor reads and writes it through the agent, so
-  the terminal sees the same file. Switching problems or languages keeps unsaved
-  edits per path; otherwise the file is reloaded, so changes made with nvim in the
-  terminal show up.
+**Problems (`/problems`):** one editor buffer per problem's solution file (e.g.
+`~/word_freq.py`; the base name comes from `solution_file` in `src/problems.rs`).
+A **Language** select (Python, C, C++, Go, Rust, Haskell) is global across problems,
+remembered in `localStorage`. Changing it swaps the extension (`.py` / `.c` / `.cpp` /
+`.go` / `.rs` / `.hs`), syntax mode, and starter template. Switching problems or
+languages keeps unsaved edits per path; otherwise the file is reloaded, so changes
+made with nvim in the terminal show up.
+
+**Play (`/play`):** open any text file under `~/` from the tree or tabs. Tabs track
+open paths; deleting or moving a file in the tree closes its tab. Binary or oversized
+files show an error instead of opening. Syntax mode follows the file extension.
+**Build** walks from the current file's directory up to `~/` looking for `Cargo.toml`,
+`go.mod`, `Makefile`, `uv.lock`, or `pyproject.toml`, then runs the matching command
+(`cargo build`, `go build .`, `make`, or `uv sync`). You can type a different command
+in the build field; that override is stored in `localStorage` until you clear it.
+
+On both pages:
+
 - **Ctrl-S** saves, and **Ctrl-Enter** (or **Run**) saves and compiles/runs in the
   terminal (`python3`, `gcc`/`g++` then `/tmp/ngoding`, `go run`, `rustc` then
   `/tmp/ngoding`, or `runghc`). Leaving the page with unsaved edits asks for
@@ -163,17 +189,19 @@ the same language, remembered in `localStorage`. Changing it swaps the file exte
 
 ## Saving work
 
-The whole VM is saved to IndexedDB: memory plus every file the student changed, which
-v86 keeps in its 9p filesystem state. The browser's `CompressionStream` gzips it. A
-reload resumes exactly where the student was, including running programs, in about
-0.6 s.
+The whole VM is saved to IndexedDB under **`vm:play`** or **`vm:problems`**, depending
+on the page: memory plus every file the student changed, which v86 keeps in its 9p
+filesystem state. The browser's `CompressionStream` gzips it. A reload on the same
+page resumes exactly where the student was, including running programs, in about
+0.6 s. An older single-key save (`snapshot`) is migrated once into `vm:problems`.
 
-- **When it saves:** after every Check, every minute if there was terminal input, and
-  when the tab is hidden.
+- **When it saves:** after every Check (Problems only), every minute if there was
+  terminal input, and when the tab is hidden.
 - **Size:** 16 MiB for a fresh session, about 40 MiB after `uv add` and some Python
   work. A save takes 1–3 s.
-- **When a save is discarded:** if the image is rebuilt (the snapshot name changes) or
-  the session changes (**Reset**), so restored work always matches the student's inputs.
+- **When a save is discarded:** if the image is rebuilt (the snapshot name changes),
+  the session changes (**Reset** on Problems), or you switch pages (each page has its
+  own key), so restored work always matches the right context.
 
 ## Limits and next steps for production
 
