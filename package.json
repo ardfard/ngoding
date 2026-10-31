@@ -9,7 +9,8 @@
     "build:image": "./image/build.sh",
     "start": "cargo run --release",
     "test": "cargo test",
-    "test:e2e": "node test/e2e.mjs"
+    "test:e2e": "node test/e2e.mjs",
+    "test:unit": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
