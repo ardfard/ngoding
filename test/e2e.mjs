@@ -4,7 +4,7 @@
 import { chromium } from "playwright-core";
 import { readFileSync } from "node:fs";
 
-const APP_URL = process.env.URL ?? "http://localhost:8080/";
+const APP_URL = process.env.URL ?? "http://localhost:8080/problems";
 const browser = await chromium.launch({ executablePath: process.argv[2] ?? "/usr/bin/chromium" });
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 850 } })).newPage();
 page.on("pageerror", (e) => console.error("pageerror:", e.message));

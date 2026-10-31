@@ -23,7 +23,7 @@ use axum::{
     body::{Body, to_bytes},
     extract::{Request, State},
     http::{HeaderMap, Method, StatusCode, Uri, header},
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
     routing::any,
 };
 use percent_encoding::percent_decode_str;
@@ -44,8 +44,12 @@ macro_rules! embed {
     };
 }
 const APP: &[(&str, &str, &[u8])] = embed! {
-    "/" => "public/index.html",
-    "/main.js" => "public/main.js",
+    "/play" => "public/play.html",
+    "/play.js" => "public/play.js",
+    "/play-ui.js" => "public/play-ui.js",
+    "/build-cmd.js" => "public/build-cmd.js",
+    "/problems" => "public/problems.html",
+    "/problems.js" => "public/problems.js",
     "/editor.js" => "public/editor.js",
     "/languages.js" => "public/languages.js",
     "/codemirror.js" => "public/codemirror.js",
@@ -241,6 +245,7 @@ async fn main() -> std::io::Result<()> {
     }
     let sessions = Arc::new(Sessions::new(&load_secret()?));
     let app = Router::new()
+        .route("/", any(|| async { Redirect::temporary("/play") }))
         .route("/api/session", any(api))
         .route("/api/grade", any(api))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
@@ -274,7 +279,8 @@ mod tests {
 
     #[test]
     fn app_files_are_embedded() {
-        assert_eq!(content_type(EMBEDDED["/"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/problems"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/play"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/vendor/v86/v86.wasm"].path), "application/wasm");
         assert!(EMBEDDED["/vendor/v86/libv86.mjs"].body.len() > 100_000);
     }
