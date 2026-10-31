@@ -58,7 +58,7 @@ export async function startApp(vm) {
           current = p;
           $("result").textContent = "";
           renderProblem();
-          if (booted && editorOn) editor.open(current);
+          if (booted && layout !== "shell") editor.open(current);
         };
         return b;
       }),
@@ -100,9 +100,9 @@ export async function startApp(vm) {
     location.reload();
   }
 
-  // The editor works on the current problem's solution file. It can be hidden,
-  // and vim mode / language switched (all remembered per browser). Language is
-  // global: every problem uses the same one.
+  // The editor works on the current problem's solution file. Layout cycles
+  // split / editor / shell; vim and language are remembered per browser.
+  // Language is global: every problem uses the same one.
   let vimOn = localStorage.getItem("ngoding.vim") === "on";
   let lang = languageById(localStorage.getItem(LANG_STORAGE_KEY) ?? DEFAULT_LANG);
   const langSelect = $("editor-lang");
@@ -125,20 +125,69 @@ export async function startApp(vm) {
       $("editor-status").className = cls;
     },
   });
-  let editorOn = localStorage.getItem("ngoding.editor") !== "off";
 
-  function showEditor(on) {
-    editorOn = on;
-    localStorage.setItem("ngoding.editor", on ? "on" : "off");
-    $("workspace").classList.toggle("editor-on", on);
-    $("editor-toggle").setAttribute("aria-pressed", on);
-    if (on && booted) editor.open(current).then(editor.focus);
+  const LAYOUTS = ["split", "editor", "shell"];
+  const LAYOUT_LABEL = { split: "Split", editor: "Editor", shell: "Shell" };
+  // Migrate the old editor on/off flag once.
+  let layout = localStorage.getItem("ngoding.layout");
+  if (!LAYOUTS.includes(layout)) {
+    layout = localStorage.getItem("ngoding.editor") === "off" ? "shell" : "split";
+  }
+  let editorShare = Number(localStorage.getItem("ngoding.split"));
+  if (!(editorShare > 0.15 && editorShare < 0.85)) editorShare = 0.6;
+
+  function setLayout(mode) {
+    layout = mode;
+    localStorage.setItem("ngoding.layout", mode);
+    localStorage.removeItem("ngoding.editor");
+    const ws = $("workspace");
+    ws.classList.remove("layout-split", "layout-editor", "layout-shell");
+    ws.classList.add(`layout-${mode}`);
+    $("layout-toggle").textContent = LAYOUT_LABEL[mode];
+    if (mode !== "shell" && booted) editor.open(current).then(editor.focus);
+  }
+
+  function setEditorShare(share) {
+    editorShare = Math.min(0.85, Math.max(0.15, share));
+    $("workspace").style.setProperty("--editor-share", editorShare);
   }
 
   $("seed").textContent = seed;
   $("check").onclick = check;
   $("reset").onclick = reset;
-  $("editor-toggle").onclick = () => showEditor(!editorOn);
+  $("layout-toggle").onclick = () =>
+    setLayout(LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length]);
+  {
+    const split = $("split");
+    let dragging = false;
+    split.onpointerdown = (e) => {
+      dragging = true;
+      split.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+    split.onpointermove = (e) => {
+      if (!dragging) return;
+      const ws = $("workspace").getBoundingClientRect();
+      const toolH = $("toolbar").offsetHeight;
+      const avail = ws.height - toolH - split.offsetHeight;
+      if (avail > 0) setEditorShare((e.clientY - ws.top - toolH) / avail);
+    };
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      localStorage.setItem("ngoding.split", String(editorShare));
+    };
+    split.onpointerup = endDrag;
+    split.onpointercancel = endDrag;
+    split.onkeydown = (e) => {
+      const step = e.shiftKey ? 0.1 : 0.05;
+      if (e.key === "ArrowUp") setEditorShare(editorShare - step);
+      else if (e.key === "ArrowDown") setEditorShare(editorShare + step);
+      else return;
+      e.preventDefault();
+      localStorage.setItem("ngoding.split", String(editorShare));
+    };
+  }
   $("vim-toggle").setAttribute("aria-pressed", vimOn);
   $("vim-toggle").onclick = () => {
     vimOn = !vimOn;
@@ -153,11 +202,12 @@ export async function startApp(vm) {
     lang = languageById(langSelect.value);
     localStorage.setItem(LANG_STORAGE_KEY, lang.id);
     await editor.setLanguage(lang.id);
-    if (editorOn) editor.focus();
+    if (layout !== "shell") editor.focus();
   };
   addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());
   renderProblem();
-  showEditor(editorOn);
+  setEditorShare(editorShare);
+  setLayout(layout);
 
   await init();
   const term = new Terminal({
@@ -185,8 +235,9 @@ export async function startApp(vm) {
       $("check").disabled = false;
       $("editor-save").disabled = $("editor-run").disabled = false;
       booted = true;
-      if (editorOn) editor.open(current);
-      term.focus();
+      if (layout !== "shell") editor.open(current);
+      if (layout !== "editor") term.focus();
+      else editor.focus();
     })
     .catch((e) => {
       console.error(e);

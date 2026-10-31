@@ -33,9 +33,9 @@
         </p>
       </footer>
     </aside>
-    <div id="workspace" class="editor-on">
+    <div id="workspace" class="layout-split" style="--editor-share: 0.6">
       <div id="toolbar">
-        <button id="editor-toggle" aria-pressed="true" title="Show or hide the editor">Editor</button>
+        <button id="layout-toggle" title="Cycle layout: split, editor only, shell only">Split</button>
         <label class="editor-only" id="lang-label">Language
           <select id="editor-lang" title="Language for all problems"></select>
         </label>
@@ -45,6 +45,7 @@
         <button id="editor-run" class="editor-only" title="Save, compile if needed, and run in the terminal (Ctrl-Enter)" disabled>Run ▸</button>
       </div>
       <section id="editor" class="editor-only"></section>
+      <div id="split" class="editor-only" role="separator" aria-orientation="horizontal" aria-label="Resize editor and shell" tabindex="0"></div>
       <main id="terminal"></main>
     </div>
   </body>

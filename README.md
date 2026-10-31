@@ -155,8 +155,9 @@ the same language, remembered in `localStorage`. Changing it swaps the file exte
   None of them know about imported libraries; that would need a language server in
   the VM.
 - **Vim** switches on Vim keybindings (@replit/codemirror-vim), with `:w` to save.
-- The **Editor** and **Vim** buttons and the language choice are remembered in
-  `localStorage`.
+- The layout button cycles **Split** / **Editor** / **Shell** (drag the bar between
+  editor and terminal to resize the split). Layout, split ratio, **Vim**, and
+  language are remembered in `localStorage`.
 - `npm install` bundles CodeMirror into `public/codemirror.js` with esbuild
   (`npm run build:editor`, entry point `editor/codemirror.js`), which the binary embeds.
 

@@ -14,6 +14,7 @@
 html, body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--fg);
 }
@@ -21,6 +22,7 @@ html, body {
 body {
   display: grid;
   grid-template-columns: minmax(320px, 420px) 1fr;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 aside {
@@ -119,11 +121,21 @@ summary { cursor: pointer; }
 .credits a { color: var(--muted); }
 .credits a:hover { color: var(--accent); }
 
-#workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-#workspace:not(.editor-on) .editor-only { display: none; }
+#workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+#workspace.layout-shell .editor-only { display: none; }
+#workspace.layout-editor #terminal,
+#workspace.layout-editor #split { display: none; }
 
 #toolbar {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
@@ -165,12 +177,26 @@ summary { cursor: pointer; }
   text-overflow: ellipsis;
 }
 #editor-status.dirty { color: #ffd479; }
-#workspace:not(.editor-on) #editor-status { visibility: hidden; }
+#workspace.layout-shell #editor-status { visibility: hidden; }
 
-section#editor { flex: 3 1 0; min-height: 0; border-bottom: 1px solid var(--line); }
+section#editor {
+  flex: var(--editor-share, 0.6) 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+#workspace.layout-editor section#editor { flex: 1 1 0; }
+
+#split {
+  flex: 0 0 6px;
+  cursor: row-resize;
+  background: var(--line);
+  touch-action: none;
+}
+#split:hover, #split:focus { background: var(--muted); }
+#split:focus { outline: none; }
 
 main#terminal {
-  flex: 2 1 0;
+  flex: calc(1 - var(--editor-share, 0.6)) 1 0;
   min-width: 0;
   min-height: 0;
   padding: 8px;
@@ -178,4 +204,6 @@ main#terminal {
   position: relative;
   overflow: hidden;
 }
+#workspace.layout-shell main#terminal { flex: 1 1 0; }
+#workspace.layout-editor main#terminal { flex: 0 0 0; }
 main#terminal canvas { display: block; }

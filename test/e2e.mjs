@@ -168,9 +168,13 @@ await sh("head -1 ~/prime_sums.py");
 expect("vim mode edits and saves with :w", (await editorText()).startsWith("# vim-edit\n") && (await screen()).includes("\n# vim-edit"),
   (await editorText()).split("\n")[0]);
 
-// The editor can be hidden; the choice is remembered (checked after the reload).
+// Layout cycles Split → Editor → Shell; Shell hides the editor and is remembered.
+await page.getByRole("button", { name: "Split" }).click();
+expect("editor-only layout hides the terminal", !(await page.locator("#terminal").isVisible()) &&
+  await page.locator("#editor").isVisible());
 await page.getByRole("button", { name: "Editor" }).click();
-expect("editor can be hidden", !(await page.locator("#editor").isVisible()) && !(await page.locator("#editor-run").isVisible()));
+expect("shell-only layout hides the editor", !(await page.locator("#editor").isVisible()) &&
+  !(await page.locator("#editor-run").isVisible()));
 
 // The server holds the solvers: they must not be downloadable, and grading must
 // not accept a made-up session.
@@ -196,9 +200,9 @@ expect("files survive the reload", (await screen()).includes("persisted-marker")
 r = await check("Word frequency");
 expect("grading still works after restore", r.startsWith("✓"), r);
 
-expect("hidden editor stays hidden after reload", !(await page.locator("#editor").isVisible()));
+expect("shell layout stays after reload", !(await page.locator("#editor").isVisible()));
 await page.getByRole("button", { name: "Prime sums" }).click();
-await page.getByRole("button", { name: "Editor" }).click();
+await page.getByRole("button", { name: "Shell" }).click(); // Shell → Split
 await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
 expect("vim mode stays on after reload", await page.locator(".cm-vim-panel").isVisible());
 await page.getByRole("button", { name: "Vim" }).click();
