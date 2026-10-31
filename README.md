@@ -14,7 +14,7 @@ and does two cheap JSON calls: starting a session and grading a submitted output
 
 ```
 ┌──────────── browser tab ──────────────────────────────────────────────────┐
-│ ui.js: problems, [Check], editor   │  xterm.js ⇄ serial port 1 (ttyS0)     │
+│ ui.js: problems, [Check], editor   │  ghostty-web ⇄ serial port 1 (ttyS0)  │
 │                                    │                                       │
 │ vm.js: boot / readFile / save  ────┼─► serial port 2 ⇄ root agent in the   │
 │   save → IndexedDB snapshot        │   guest: write inputs, read outputs   │
@@ -30,7 +30,7 @@ and does two cheap JSON calls: starting a session and grading a submitted output
 ## Run it
 
 ```sh
-npm install           # browser deps (xterm.js, v86), embedded by cargo; Playwright for e2e
+npm install           # browser deps (ghostty-web, v86), embedded by cargo; Playwright for e2e
 npm run build:image   # docker + node: public/v86/{fs.json,flat/,state-<hash>.bin.zst} (~220 MB)
 npm start             # cargo run --release: http://localhost:8080
 npm test              # cargo test: checks the reference solvers against Python solutions
@@ -44,7 +44,7 @@ npm run test:e2e      # with the server running: boots the VM in headless Chromi
 ## Deploy
 
 `cargo build --release` produces one ~8 MB binary, `target/release/ngoding`, with the
-app (HTML/JS/CSS, xterm.js, v86's wasm, the BIOS) compiled in; run `npm install` first.
+app (HTML/JS/CSS, ghostty-web, v86's wasm, the BIOS) compiled in; run `npm install` first.
 The VM image stays on disk, so it can be rebuilt without rebuilding the server. Copy
 `fs.json`, `flat/`, `version.json` and `state-*.bin.zst` from `public/v86/` and run:
 
@@ -111,7 +111,7 @@ enabled.
 - `agent.sh` runs as root on the second serial port and accepts a fixed set of verbs:
   - `write`: push a challenge input file
   - `read`: fetch an output file for grading
-  - `resize`: match the tty to xterm.js
+  - `resize`: match the tty to the browser terminal
   - `init`: set the clock and add fresh entropy, since every visitor restores the
     same snapshot
 
@@ -191,7 +191,7 @@ reload resumes exactly where the student was, including running programs, in abo
 
 Apache License 2.0; see `LICENSE` and `NOTICE`. Third-party parts keep their own
 licenses: v86's tools in `image/tools/` (BSD 2-Clause), SeaBIOS in `public/v86/bios/`
-(LGPL v3), and the npm packages served to browsers (v86: BSD 2-Clause, xterm.js: MIT,
+(LGPL v3), and the npm packages served to browsers (v86: BSD 2-Clause, ghostty-web: MIT,
 CodeMirror and its Vim mode: MIT).
 
 The built VM image (`npm run build:image`) contains Debian packages under their own

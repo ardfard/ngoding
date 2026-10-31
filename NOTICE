@@ -11,8 +11,9 @@ This product includes software developed by others:
 - SeaBIOS (https://www.seabios.org/), GNU LGPL v3.
   public/v86/bios/*.bin; see public/v86/bios/README.md.
 
-- xterm.js (https://github.com/xtermjs/xterm.js), MIT License.
-  Installed from npm and served to browsers at runtime.
+- ghostty-web (https://github.com/coder/ghostty-web), MIT License.
+  Installed from npm and served to browsers at runtime. Uses Ghostty's VT
+  parser via WebAssembly.
 
 - CodeMirror (https://codemirror.net/), Lezer, and codemirror-vim
   (https://github.com/replit/codemirror-vim), MIT License.

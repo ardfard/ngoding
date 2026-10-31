@@ -12,6 +12,7 @@
 // Problems, inputs and grading come from the server (/api/session, /api/grade),
 // so expected answers never reach the browser.
 
+import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
 import { createEditor } from "./editor.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 
@@ -158,18 +159,19 @@ export async function startApp(vm) {
   renderProblem();
   showEditor(editorOn);
 
+  await init();
   const term = new Terminal({
     cursorBlink: true,
     convertEol: true,
     fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
     theme: { background: "#000000" },
   });
-  const fit = new FitAddon.FitAddon();
+  const fit = new FitAddon();
   term.loadAddon(fit);
   term.open($("terminal"));
   fit.fit();
   // Refit when the window or the editor split changes the terminal's size.
-  new ResizeObserver(() => fit.fit()).observe($("terminal"));
+  fit.observeResize();
 
   const onSave = ({ savedAt }) =>
     setStatus(`${ready} · saved ${new Date(savedAt).toLocaleTimeString([], { timeStyle: "short" })}`, "ready");
@@ -192,6 +194,7 @@ export async function startApp(vm) {
       term.write(`\n\x1b[31mBoot failed: ${e.message ?? e}\x1b[0m\n`);
     });
 
-  // Handy for debugging / automated tests.
-  window.ngoding = { vm, check, inputs, seed, editor };
+  // Handy for debugging / automated tests. term.buffer is the only way to read
+  // the canvas-backed screen from Playwright.
+  window.ngoding = { vm, check, inputs, seed, editor, term };
 }

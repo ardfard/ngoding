@@ -9,16 +9,49 @@ const browser = await chromium.launch({ executablePath: process.argv[2] ?? "/usr
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 850 } })).newPage();
 page.on("pageerror", (e) => console.error("pageerror:", e.message));
 
-const screen = () => page.locator(".xterm-rows").innerText();
+// ghostty-web renders to canvas; read the VT buffer through the exposed term.
+const screenText = () => {
+  const term = window.ngoding.term;
+  const buf = term.buffer.active;
+  const lines = [];
+  for (let y = 0; y < buf.length; y++) {
+    const line = buf.getLine(y);
+    lines.push(line ? line.translateToString(true) : "");
+  }
+  return lines.join("\n");
+};
+const screen = () => page.evaluate(screenText);
+const screenIncludes = (s, timeout = 120_000) => page.waitForFunction(
+  (needle) => {
+    const term = window.ngoding?.term;
+    if (!term) return false;
+    const buf = term.buffer.active;
+    let text = "";
+    for (let y = 0; y < buf.length; y++) {
+      const line = buf.getLine(y);
+      text += (line ? line.translateToString(true) : "") + "\n";
+    }
+    return text.includes(needle);
+  },
+  s, { timeout },
+);
 let marker = 0;
 // Type a shell command and wait for it to finish (detected via an echoed marker).
 async function sh(cmd, timeout = 180_000) {
   const done = `__done_${++marker}__`;
-  await page.locator(".xterm-helper-textarea").focus();
+  await page.locator("#terminal textarea").focus();
   // Printed from two halves so the echoed command line itself never matches.
   await page.keyboard.type(`${cmd}; printf '\\n%s%s\\n' __done_ ${marker}__\n`);
   await page.waitForFunction(
-    (d) => document.querySelector(".xterm-rows").innerText.split("\n").some((l) => l.trim() === d),
+    (d) => {
+      const term = window.ngoding.term;
+      const buf = term.buffer.active;
+      for (let y = 0; y < buf.length; y++) {
+        const line = buf.getLine(y);
+        if (line && line.translateToString(true).trim() === d) return true;
+      }
+      return false;
+    },
     done, { timeout },
   ).catch(async (e) => {
     console.error(`timed out running: ${cmd.slice(0, 80)}\n--- terminal ---\n${await screen()}`);
@@ -43,7 +76,10 @@ const t0 = Date.now();
 await page.goto(APP_URL);
 await page.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 600_000 });
 console.log(`booted in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("$"), null, { timeout: 120_000 });
+await screenIncludes("$").catch(async (e) => {
+  console.error(`no shell prompt\n--- terminal ---\n${await screen()}`);
+  throw e;
+});
 
 const editorText = () => page.evaluate(() => window.ngoding.editor.view.state.doc.toString());
 const editorStatus = () => page.locator("#editor-status").innerText();
@@ -114,7 +150,7 @@ expect("edits are marked unsaved", (await editorStatus()).includes("modified"));
 
 // Ctrl-Enter saves the file and runs it in the terminal.
 await page.keyboard.press("Control+Enter");
-await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("from-editor"), null, { timeout: 60_000 })
+await screenIncludes("from-editor", 60_000)
   .then(() => expect("Ctrl-Enter saves and runs the file", true), () => expect("Ctrl-Enter saves and runs the file", false));
 expect("saved status shown", (await editorStatus()).endsWith("· saved"), await editorStatus());
 
@@ -154,7 +190,7 @@ expect("reload restores saved work", (await page.locator("#status").innerText())
 const downloaded = await page.evaluate(() =>
   performance.getEntriesByType("resource").reduce((sum, e) => sum + e.transferSize, 0));
 expect("reload downloads < 1 MiB (cache)", downloaded < 2 ** 20, `${(downloaded / 2 ** 10).toFixed(0)} KiB`);
-await page.waitForFunction(() => document.querySelector(".xterm-rows").innerText.includes("$"));
+await screenIncludes("$");
 await sh("cat ~/notes.txt");
 expect("files survive the reload", (await screen()).includes("persisted-marker"));
 r = await check("Word frequency");

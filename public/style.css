@@ -169,4 +169,13 @@ summary { cursor: pointer; }
 
 section#editor { flex: 3 1 0; min-height: 0; border-bottom: 1px solid var(--line); }
 
-main#terminal { flex: 2 1 0; min-width: 0; min-height: 0; padding: 8px; background: #000; }
+main#terminal {
+  flex: 2 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+main#terminal canvas { display: block; }

@@ -99,7 +99,7 @@ export async function boot(ctx) {
   await new Promise((ok) => emulator.add_listener("emulator-ready", ok));
   setStatus("resuming…");
 
-  // Batch output bytes into one xterm write per frame.
+  // Batch output bytes into one terminal write per frame.
   let out = [];
   emulator.add_listener("serial0-output-byte", (b) => {
     if (out.length === 0) requestAnimationFrame(() => {

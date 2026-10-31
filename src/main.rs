@@ -1,6 +1,6 @@
 // Server for the PoC. Everything heavy (the VM, the student's programs) runs in
 // the browser; the server only:
-//  - serves the app (public/ plus the npm-installed xterm.js and v86 builds),
+//  - serves the app (public/ plus the npm-installed ghostty-web and v86 builds),
 //    which is compiled into the binary
 //  - serves the VM image (fs.json, flat/, the snapshot) from NGODING_IMAGE_DIR
 //  - hands out sessions (POST /api/session) and grades output files
@@ -36,7 +36,7 @@ use problems::{PROBLEMS, grade, inputs_for};
 use session::Sessions;
 
 // URL path -> file, relative to the repo root. Only these are embedded. Run
-// `npm install` before `cargo build`: it installs xterm.js and v86 and bundles
+// `npm install` before `cargo build`: it installs ghostty-web and v86 and bundles
 // CodeMirror into public/codemirror.js.
 macro_rules! embed {
     ($($url:literal => $file:literal,)*) => {
@@ -56,11 +56,11 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/style.css" => "public/style.css",
     "/v86/bios/seabios.bin" => "public/v86/bios/seabios.bin",
     "/v86/bios/vgabios.bin" => "public/v86/bios/vgabios.bin",
-    "/vendor/xterm/css/xterm.css" => "node_modules/@xterm/xterm/css/xterm.css",
-    "/vendor/xterm/lib/xterm.js" => "node_modules/@xterm/xterm/lib/xterm.js",
-    "/vendor/xterm/lib/xterm.js.map" => "node_modules/@xterm/xterm/lib/xterm.js.map",
-    "/vendor/addon-fit/lib/addon-fit.js" => "node_modules/@xterm/addon-fit/lib/addon-fit.js",
-    "/vendor/addon-fit/lib/addon-fit.js.map" => "node_modules/@xterm/addon-fit/lib/addon-fit.js.map",
+    "/vendor/ghostty-web/ghostty-web.js" => "node_modules/ghostty-web/dist/ghostty-web.js",
+    "/vendor/ghostty-web/ghostty-vt.wasm" => "node_modules/ghostty-web/dist/ghostty-vt.wasm",
+    // Stub left by ghostty-web's Vite build; the browser may request it while
+    // probing WASM load paths (Node fs fallback). Harmless empty module.
+    "/vendor/ghostty-web/__vite-browser-external-2447137e.js" => "node_modules/ghostty-web/dist/__vite-browser-external-2447137e.js",
     "/vendor/v86/libv86.mjs" => "node_modules/v86/build/libv86.mjs",
     "/vendor/v86/v86.wasm" => "node_modules/v86/build/v86.wasm",
     "/vendor/v86/v86-fallback.wasm" => "node_modules/v86/build/v86-fallback.wasm",
