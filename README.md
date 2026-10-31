@@ -76,8 +76,8 @@ in front of the server handles a whole class.
 ## What's in the VM
 
 i386 Debian bookworm with a 6.1 kernel, `python3` 3.11, `pip`, `venv`, `numpy`,
-**`uv`**, `gcc`/`g++`, `go`, `rustc`, `ghc`/`runghc`, `git`, `nano`, `vim`,
-`sudo` (passwordless), and user `user`.
+**`uv`**, `gcc`/`g++`, `go`, `rustc`, `ghc`/`runghc`, `git`, `nano`, `nvim`
+(`vi`/`vim` alias to it), `sudo` (passwordless), and user `user`.
 
 The VM has **no network** by default. So that the package-manager workflow still works,
 `/opt/wheels` contains a few wheels (`rich`, `requests`, `pytest`, `tabulate`), and
@@ -144,7 +144,7 @@ the same language, remembered in `localStorage`. Changing it swaps the file exte
 
 - The file lives in the VM. The editor reads and writes it through the agent, so
   the terminal sees the same file. Switching problems or languages keeps unsaved
-  edits per path; otherwise the file is reloaded, so changes made with vim in the
+  edits per path; otherwise the file is reloaded, so changes made with nvim in the
   terminal show up.
 - **Ctrl-S** saves, and **Ctrl-Enter** (or **Run**) saves and compiles/runs in the
   terminal (`python3`, `gcc`/`g++` then `/tmp/ngoding`, `go run`, `rustc` then

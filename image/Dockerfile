@@ -27,8 +27,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         golang-go \
         rustc \
         ghc \
-        bash-completion ca-certificates curl git less nano vim-tiny \
+        bash-completion ca-certificates curl git less nano neovim \
         procps file tree sudo \
+    && update-alternatives --set editor /usr/bin/nvim \
     && rm -rf /var/lib/apt/lists/*
 
 # Boot with the root filesystem on 9p (adapted from v86's tools/docker/debian).

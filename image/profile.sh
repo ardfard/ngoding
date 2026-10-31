@@ -11,7 +11,11 @@ export UV_LINK_MODE=copy
 export PIP_NO_INDEX=1
 export PIP_FIND_LINKS=/opt/wheels
 
+export EDITOR=nvim
+export VISUAL=nvim
 alias ll='ls -alF'
+alias vi=nvim
+alias vim=nvim
 
 if [ "$(id -u)" = 1000 ] && [ -z "$NGODING_GREETED" ]; then
     export NGODING_GREETED=1
@@ -19,7 +23,7 @@ if [ "$(id -u)" = 1000 ] && [ -z "$NGODING_GREETED" ]; then
 Welcome to the ngoding sandbox.
   Challenge files: ~/challenge/<problem>/
   Write answers:   ~/output/
-  Tools: python3, gcc, g++, go, rustc, ghc/runghc, uv, pip, git, nano, vim
+  Tools: python3, gcc, g++, go, rustc, ghc/runghc, uv, pip, git, nano, nvim
   Offline packages in /opt/wheels (try: uv init demo && cd demo && uv add rich)
 
 EOF
