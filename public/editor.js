@@ -79,7 +79,7 @@ function modeFor(lang) {
 
 // ctx: { parent, vm, onStatus(text, cls), vim, language }. Call open(problem) to
 // show a problem's file; until then (and while the VM boots) the editor is read-only.
-export function createEditor({ parent, vm, onStatus, vim: vimOn = false, language: languageId = "python" }) {
+export function createEditor({ parent, vm, onStatus, onDocChange, vim: vimOn = false, language: languageId = "python" }) {
   // path -> { state, saved, template }: one buffer per file, so switching
   // problems or languages keeps unsaved edits. saved is the text in the VM, or
   // null if the file doesn't exist yet.
@@ -111,7 +111,11 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
         theme,
         syntaxHighlighting(highlight),
         EditorState.readOnly.of(readOnly),
-        EditorView.updateListener.of((u) => u.docChanged && report()),
+        EditorView.updateListener.of((u) => {
+          if (!u.docChanged) return;
+          report();
+          onDocChange?.();
+        }),
       ],
     });
   }

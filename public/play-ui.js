@@ -7,15 +7,40 @@ import { languageFromPath } from "./languages.js";
 const $ = (id) => document.getElementById(id);
 const BUILD_KEY = "ngoding.play.build";
 
+/** Single-quoted path for POSIX shell `cd`. */
+function shellQuote(path) {
+  return `'${path.replace(/'/g, `'\\''`)}'`;
+}
+
 export async function startPlay(vm) {
   let ready = "";
   let booted = false;
   /** @type {{ command: string, dir: string } | null} */
   let detectedBuild = null;
+  // Non-empty only when the user explicitly set a build override (stored in localStorage).
+  let buildUserOverride = localStorage.getItem(BUILD_KEY) ?? "";
 
   function setStatus(text, cls = "") {
     $("status").textContent = text;
     $("status").className = `status ${cls}`;
+  }
+
+  function buildOverrideForResolve() {
+    return buildUserOverride.trim() ? buildUserOverride : "";
+  }
+
+  function syncBuildInput() {
+    const input = $("build-cmd");
+    if (document.activeElement === input) return;
+    input.value = buildUserOverride.trim()
+      ? buildUserOverride
+      : (detectedBuild?.command ?? "");
+    input.placeholder = detectedBuild ? "" : "build command";
+  }
+
+  function applyBuildControls() {
+    const resolved = resolveBuild({ override: buildOverrideForResolve(), detected: detectedBuild });
+    $("build-btn").disabled = !booted || resolved.source === "none";
   }
 
   let vimOn = localStorage.getItem("ngoding.vim") === "on";
@@ -23,11 +48,11 @@ export async function startPlay(vm) {
     parent: $("editor"),
     vm,
     vim: vimOn,
+    onDocChange: () => renderTabs(),
     onStatus: (text, cls) => {
       $("editor-status").textContent = text;
       $("editor-status").className = cls;
       renderTabs();
-      updateBuild();
     },
   });
 
@@ -39,7 +64,7 @@ export async function startPlay(vm) {
       const ok = await editor.openPath(path);
       if (!ok) editor.closePath(path);
       renderTabs();
-      updateBuild();
+      await updateBuild();
     },
     onStatus: (msg) => setStatus(msg, "error"),
     onPathRemoved: (path) => editor.closePath(path),
@@ -60,9 +85,9 @@ export async function startPlay(vm) {
         btn.className = "editor-tab-label";
         const name = path.slice(path.lastIndexOf("/") + 1);
         btn.textContent = name;
-        btn.onclick = () => editor.openPath(path).then(() => {
+        btn.onclick = () => editor.openPath(path).then(async () => {
           renderTabs();
-          updateBuild();
+          await updateBuild();
         });
         wrap.appendChild(btn);
 
@@ -97,22 +122,17 @@ export async function startPlay(vm) {
       const entries = await vm.listDir(d);
       return entries?.map((e) => e.name) ?? [];
     });
-    const resolved = resolveBuild({ override: $("build-cmd").value, detected: detectedBuild });
-    $("build-btn").disabled = !booted || resolved.source === "none";
-    if (!($("build-cmd").value.trim()) && detectedBuild) {
-      $("build-cmd").placeholder = detectedBuild.command;
-    } else if (resolved.source === "none") {
-      $("build-cmd").placeholder = "build command";
-    }
+    syncBuildInput();
+    applyBuildControls();
     const lang = path ? languageFromPath(path) : null;
     $("editor-lang").textContent = lang ? lang.label : "";
   }
 
   function runBuild() {
-    const resolved = resolveBuild({ override: $("build-cmd").value, detected: detectedBuild });
+    const resolved = resolveBuild({ override: buildOverrideForResolve(), detected: detectedBuild });
     if (resolved.source === "none") return;
     const dir = resolved.dir ?? "/home/user";
-    vm.type(`cd ${dir} && ${resolved.command}\n`);
+    vm.type(`cd ${shellQuote(dir)} && ${resolved.command}\n`);
   }
 
   async function reset() {
@@ -153,11 +173,15 @@ export async function startPlay(vm) {
     split.onpointercancel = endDrag;
   }
 
-  $("build-cmd").value = localStorage.getItem(BUILD_KEY) ?? "";
+  $("build-cmd").value = buildUserOverride.trim()
+    ? buildUserOverride
+    : "";
   $("build-cmd").oninput = () => {
-    localStorage.setItem(BUILD_KEY, $("build-cmd").value);
-    updateBuild();
+    buildUserOverride = $("build-cmd").value;
+    localStorage.setItem(BUILD_KEY, buildUserOverride);
+    applyBuildControls();
   };
+  $("build-cmd").onblur = () => syncBuildInput();
 
   $("reset").onclick = reset;
   $("editor-save").onclick = () => editor.save();
