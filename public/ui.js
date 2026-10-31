@@ -13,6 +13,7 @@
 // so expected answers never reach the browser.
 
 import { createEditor } from "./editor.js";
+import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -99,10 +100,23 @@ export async function startApp(vm) {
   }
 
   // The editor works on the current problem's solution file. It can be hidden,
-  // and vim mode switched on (both remembered per browser).
+  // and vim mode / language switched (all remembered per browser). Language is
+  // global: every problem uses the same one.
   let vimOn = localStorage.getItem("ngoding.vim") === "on";
+  let lang = languageById(localStorage.getItem(LANG_STORAGE_KEY) ?? DEFAULT_LANG);
+  const langSelect = $("editor-lang");
+  langSelect.replaceChildren(
+    ...LANGUAGES.map((l) => {
+      const o = document.createElement("option");
+      o.value = l.id;
+      o.textContent = l.label;
+      return o;
+    }),
+  );
+  langSelect.value = lang.id;
   const editor = createEditor({
     vim: vimOn,
+    language: lang.id,
     parent: $("editor"),
     vm,
     onStatus: (text, cls) => {
@@ -134,6 +148,12 @@ export async function startApp(vm) {
   };
   $("editor-save").onclick = () => editor.save();
   $("editor-run").onclick = () => editor.run();
+  langSelect.onchange = async () => {
+    lang = languageById(langSelect.value);
+    localStorage.setItem(LANG_STORAGE_KEY, lang.id);
+    await editor.setLanguage(lang.id);
+    if (editorOn) editor.focus();
+  };
   addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());
   renderProblem();
   showEditor(editorOn);

@@ -132,7 +132,7 @@ summary { cursor: pointer; }
   font-size: 13px;
 }
 
-#toolbar button {
+#toolbar button, #toolbar select {
   font: inherit;
   cursor: pointer;
   background: none;
@@ -140,6 +140,16 @@ summary { cursor: pointer; }
   border: 1px solid var(--line);
   padding: 4px 10px;
 }
+
+#lang-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#toolbar select { color: var(--fg); }
 
 #toolbar button:hover:not(:disabled) { border-color: var(--muted); }
 #toolbar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }

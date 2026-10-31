@@ -39,10 +39,13 @@
     <div id="workspace" class="editor-on">
       <div id="toolbar">
         <button id="editor-toggle" aria-pressed="true" title="Show or hide the editor">Editor</button>
+        <label class="editor-only" id="lang-label">Language
+          <select id="editor-lang" title="Language for all problems"></select>
+        </label>
         <span id="editor-status"></span>
         <button id="vim-toggle" class="editor-only" aria-pressed="false" title="Vim keybindings (:w saves)">Vim</button>
         <button id="editor-save" class="editor-only" title="Save (Ctrl-S)" disabled>Save</button>
-        <button id="editor-run" class="editor-only" title="Save and run in the terminal (Ctrl-Enter)" disabled>Run ▸</button>
+        <button id="editor-run" class="editor-only" title="Save, compile if needed, and run in the terminal (Ctrl-Enter)" disabled>Run ▸</button>
       </div>
       <section id="editor" class="editor-only"></section>
       <main id="terminal"></main>

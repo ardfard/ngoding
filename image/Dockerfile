@@ -23,6 +23,10 @@ RUN printf '%s\n' \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         linux-image-686 initramfs-tools tini \
         python3 python3-venv python3-pip python3-numpy \
+        gcc g++ libc6-dev \
+        golang-go \
+        rustc \
+        ghc \
         bash-completion ca-certificates curl git less nano vim-tiny \
         procps file tree sudo \
     && rm -rf /var/lib/apt/lists/*

@@ -76,7 +76,8 @@ in front of the server handles a whole class.
 ## What's in the VM
 
 i386 Debian bookworm with a 6.1 kernel, `python3` 3.11, `pip`, `venv`, `numpy`,
-**`uv`**, `git`, `nano`, `vim`, `sudo` (passwordless), and user `user`.
+**`uv`**, `gcc`/`g++`, `go`, `rustc`, `ghc`/`runghc`, `git`, `nano`, `vim`,
+`sudo` (passwordless), and user `user`.
 
 The VM has **no network** by default. So that the package-manager workflow still works,
 `/opt/wheels` contains a few wheels (`rich`, `requests`, `pytest`, `tabulate`), and
@@ -135,20 +136,26 @@ underscores); `cargo test` checks it against the solver.
 
 ## The editor
 
-Above the terminal is a Python editor (CodeMirror 6) for the current problem's solution
-file, `~/word_freq.py` or `~/prime_sums.py` (`solution_file` in `src/problems.rs`). A new
-file starts from a template that reads the input and writes the output file.
+Above the terminal is a CodeMirror 6 editor for the current problem's solution file
+(e.g. `~/word_freq.py`; the base name comes from `solution_file` in `src/problems.rs`).
+A **Language** select (Python, C, C++, Go, Rust, Haskell) is global: every problem uses
+the same language, remembered in `localStorage`. Changing it swaps the file extension
+(`.py` / `.c` / `.cpp` / `.go` / `.rs` / `.hs`), syntax mode, and starter template.
 
 - The file lives in the VM. The editor reads and writes it through the agent, so
-  the terminal sees the same file. Switching problems keeps unsaved edits; otherwise
-  the file is reloaded, so changes made with vim in the terminal show up.
-- **Ctrl-S** saves, and **Ctrl-Enter** (or **Run**) saves and runs `python3 <file>` in the
-  terminal. Leaving the page with unsaved edits asks for confirmation.
-- Autocomplete comes from CodeMirror's Python support: keywords, builtins, snippets,
-  and names defined in the file. It doesn't know about imported modules (e.g.
-  `numpy.` members); that would need a language server such as jedi running in the VM.
+  the terminal sees the same file. Switching problems or languages keeps unsaved
+  edits per path; otherwise the file is reloaded, so changes made with vim in the
+  terminal show up.
+- **Ctrl-S** saves, and **Ctrl-Enter** (or **Run**) saves and compiles/runs in the
+  terminal (`python3`, `gcc`/`g++` then `/tmp/ngoding`, `go run`, `rustc` then
+  `/tmp/ngoding`, or `runghc`). Leaving the page with unsaved edits asks for
+  confirmation.
+- Autocomplete: Python and Go use CodeMirror's built-in keyword/snippet/local-name
+  sources; C, C++, Rust, and Haskell get keywords plus words already in the buffer.
+  None of them know about imported libraries; that would need a language server in
+  the VM.
 - **Vim** switches on Vim keybindings (@replit/codemirror-vim), with `:w` to save.
-- The **Editor** and **Vim** buttons toggle each; both choices are remembered in
+- The **Editor** and **Vim** buttons and the language choice are remembered in
   `localStorage`.
 - `npm install` bundles CodeMirror into `public/codemirror.js` with esbuild
   (`npm run build:editor`, entry point `editor/codemirror.js`), which the binary embeds.

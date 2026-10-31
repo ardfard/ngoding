@@ -47,6 +47,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/" => "public/index.html",
     "/main.js" => "public/main.js",
     "/editor.js" => "public/editor.js",
+    "/languages.js" => "public/languages.js",
     "/codemirror.js" => "public/codemirror.js",
     "/store.js" => "public/store.js",
     "/ui.js" => "public/ui.js",

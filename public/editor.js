@@ -1,12 +1,14 @@
-// Python editor (CodeMirror 6) for the current problem's solution file. The file
-// lives in the VM and is read and written through the VM agent, so the editor
-// and the terminal work on the same file. Autocomplete comes from CodeMirror's
-// Python support: keywords, builtins, and names defined in the file. Vim mode
-// (@replit/codemirror-vim) can be switched on, with :w to save.
+// Solution editor (CodeMirror 6) for the current problem. The file lives in the
+// VM and is read and written through the VM agent, so the editor and the
+// terminal work on the same file. Language (Python, C, C++, Go, Rust, Haskell)
+// is global: it picks the file extension, syntax mode, template, and Run command.
 import {
-  Compartment, EditorState, EditorView, HighlightStyle, Vim, basicSetup, indentUnit,
-  indentWithTab, keymap, Prec, python, syntaxHighlighting, tags as t, vim,
+  Compartment, EditorState, EditorView, HighlightStyle, StreamLanguage,
+  Vim, basicSetup, completeAnyWord, completeFromList, cpp, cppLanguage, go,
+  haskell, indentUnit, indentWithTab, keymap, Prec, python, rust, rustLanguage,
+  syntaxHighlighting, tags as t, vim,
 } from "./codemirror.js";
+import { languageById, runCommand, solutionPath, templateFor } from "./languages.js";
 
 const theme = EditorView.theme({
   "&": { height: "100%", color: "#dfe3d6", backgroundColor: "#0b0d09" },
@@ -40,46 +42,64 @@ const highlight = HighlightStyle.define([
   { tag: t.invalid, color: "#ff7a6b" },
 ]);
 
-// What a new solution file starts with.
-const templateFor = (p) => `# ${p.title}: read the input file, write your answer to the output file.
-from pathlib import Path
-
-input_path = Path.home() / "${p.inputFile.replace("/home/user/", "")}"
-output_path = Path.home() / "${p.outputFile.replace("/home/user/", "")}"
-
-text = input_path.read_text()
-
-answer = ""  # your code here
-
-output_path.write_text(answer)
-`;
-
 const home = (path) => path.replace(/^\/home\/user(?=\/|$)/, "~");
 
-// ctx: { parent, vm, onStatus(text, cls), vim }. Call open(problem) to show a
-// problem's file; until then (and while the VM boots) the editor is read-only.
-export function createEditor({ parent, vm, onStatus, vim: vimOn = false }) {
+// lang-python and lang-go ship completion sources; the others don't, so we
+// attach keywords plus completeAnyWord (names already in the buffer).
+const kw = (words) => completeFromList(words.map((label) => ({ label, type: "keyword" })));
+const C_KW = "auto break case char const continue default do double else enum extern float for goto if inline int long register restrict return short signed sizeof static struct switch typedef union unsigned void volatile while NULL".split(" ");
+const CPP_KW = [...C_KW, ..."alignas alignof and and_eq bitand bitor bool catch class compl constexpr const_cast decltype delete dynamic_cast explicit export false friend mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected public reinterpret_cast static_assert static_cast template this throw true try typeid typename using virtual wchar_t xor xor_eq".split(" ")];
+const RUST_KW = "as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while".split(" ");
+const HS_KW = "as case class data default deriving do else forall foreign if import in infix infixl infixr instance let module newdata of qualified then type where mdo proc rec".split(" ");
+
+function withCompletions(support, language, keywords) {
+  return [
+    support,
+    language.data.of({ autocomplete: kw(keywords) }),
+    language.data.of({ autocomplete: completeAnyWord }),
+  ];
+}
+
+function modeFor(lang) {
+  switch (lang.id) {
+    case "python": return python();
+    case "c": return withCompletions(cpp(), cppLanguage, C_KW);
+    case "cpp": return withCompletions(cpp(), cppLanguage, CPP_KW);
+    case "go": return go();
+    case "rust": return withCompletions(rust(), rustLanguage, RUST_KW);
+    case "haskell": {
+      const hs = StreamLanguage.define(haskell);
+      return withCompletions(hs, hs, HS_KW);
+    }
+    default: return python();
+  }
+}
+
+// ctx: { parent, vm, onStatus(text, cls), vim, language }. Call open(problem) to
+// show a problem's file; until then (and while the VM boots) the editor is read-only.
+export function createEditor({ parent, vm, onStatus, vim: vimOn = false, language: languageId = "python" }) {
   // path -> { state, saved, template }: one buffer per file, so switching
-  // problems keeps unsaved edits. saved is the text in the VM, or null if the
-  // file doesn't exist yet.
+  // problems or languages keeps unsaved edits. saved is the text in the VM, or
+  // null if the file doesn't exist yet.
   const files = new Map();
   let current = null; // { path, problem }
   let opening = 0;
+  let lang = languageById(languageId);
   // Every file's state carries this, so vim mode can be switched in all of them.
   const vimMode = new Compartment();
   const vimExtension = () => (vimOn ? vim({ status: true }) : []);
   Vim.defineEx("write", "w", () => save());
 
-  const view = new EditorView({ parent, state: makeState("", true) });
+  const view = new EditorView({ parent, state: makeState("", true, lang) });
 
-  function makeState(doc, readOnly = false) {
+  function makeState(doc, readOnly = false, language = lang) {
     return EditorState.create({
       doc,
       extensions: [
         vimMode.of(vimExtension()), // before basicSetup, so vim sees keys first
         basicSetup,
-        python(),
-        indentUnit.of("    "),
+        modeFor(language),
+        indentUnit.of(language.indent),
         // Highest precedence: basicSetup binds Mod-Enter to "insert blank line".
         Prec.highest(keymap.of([
           { key: "Mod-s", run: () => (save(), true), preventDefault: true },
@@ -109,18 +129,19 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false }) {
     onStatus(`${home(current.path)} · ${state}`, dirty ? "dirty" : "");
   }
 
-  // Show a problem's solution file. It's (re)loaded from the VM unless it has
-  // unsaved edits, so changes made in the terminal (e.g. with vim) show up.
+  // Show a problem's solution file for the current language. It's (re)loaded
+  // from the VM unless it has unsaved edits, so changes made in the terminal
+  // (e.g. with vim) show up.
   async function open(problem) {
-    const path = problem.solutionFile;
+    const path = solutionPath(problem, lang);
     const id = ++opening;
     if (!isDirty(path)) {
       if (current?.path !== path) onStatus(`${home(path)} · loading…`, "");
       const saved = await vm.readFile(path);
       if (id !== opening) return;
       if (!isDirty(path)) {
-        const template = templateFor(problem);
-        files.set(path, { state: makeState(saved ?? template), saved, template });
+        const template = templateFor(problem, lang);
+        files.set(path, { state: makeState(saved ?? template, false, lang), saved, template });
         if (current?.path === path) view.setState(files.get(path).state);
       }
     }
@@ -143,10 +164,10 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false }) {
     return ok;
   }
 
-  // Save, then run the file in the terminal (Ctrl-U first clears whatever is
-  // typed at the prompt).
+  // Save, then compile/run the file in the terminal (Ctrl-U first clears
+  // whatever is typed at the prompt).
   async function run() {
-    if (current && (await save())) vm.type(`\x15python3 ${home(current.path)}\n`);
+    if (current && (await save())) vm.type(`\x15${runCommand(current.path, lang)}\n`);
   }
 
   const hasUnsaved = () => [...files.keys()].some(isDirty);
@@ -158,5 +179,12 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false }) {
     for (const [path, f] of files) if (path !== current?.path) f.state = f.state.update({ effects }).state;
   }
 
-  return { open, save, run, hasUnsaved, setVim, view, focus: () => view.focus() };
+  // Switch the global language and reopen the current problem under the new
+  // extension (other languages' buffers stay in memory).
+  async function setLanguage(id) {
+    lang = languageById(id);
+    if (current) await open(current.problem);
+  }
+
+  return { open, save, run, hasUnsaved, setVim, setLanguage, view, focus: () => view.focus() };
 }
