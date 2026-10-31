@@ -6,19 +6,37 @@
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/play.js"></script>
   </head>
-  <body>
-    <aside>
+  <body class="play">
+    <aside id="sidebar">
       <header>
         <h1>ngoding</h1>
-        <a href="/problems">Problems</a>
+        <nav class="play-nav">
+          <a href="/problems">Problems</a>
+        </nav>
         <span id="status" class="status">loading…</span>
+        <button id="reset" class="danger" type="button" title="Reset Play sandbox">Reset</button>
       </header>
-      <nav id="tree"></nav>
+      <div id="tree-toolbar">
+        <button type="button" id="tree-new-file" disabled>New file</button>
+        <button type="button" id="tree-new-folder" disabled>New folder</button>
+        <button type="button" id="tree-rename" disabled>Rename</button>
+        <button type="button" id="tree-delete" disabled>Delete</button>
+      </div>
+      <div id="tree"></div>
     </aside>
-    <div id="workspace">
-      <div id="toolbar"></div>
+    <div id="workspace" class="layout-split" style="--editor-share: 0.6">
+      <div id="toolbar">
+        <button type="button" id="editor-save" title="Save (Ctrl-S)" disabled>Save</button>
+        <button type="button" id="editor-run" title="Save and run (Ctrl-Enter)" disabled>Run ▸</button>
+        <button type="button" id="build-btn" title="Run build in terminal" disabled>Build</button>
+        <input id="build-cmd" type="text" spellcheck="false" placeholder="build command" disabled />
+        <span id="editor-lang" class="editor-lang"></span>
+        <span id="editor-status"></span>
+        <button type="button" id="vim-toggle" aria-pressed="false" title="Vim keybindings">Vim</button>
+      </div>
       <div id="editor-tabs"></div>
       <section id="editor"></section>
+      <div id="split" role="separator" aria-orientation="horizontal" aria-label="Resize editor and shell" tabindex="0"></div>
       <main id="terminal"></main>
     </div>
   </body>

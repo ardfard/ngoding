@@ -248,6 +248,7 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
   }
 
   const hasUnsaved = () => [...files.keys()].some(isDirty);
+  const isDirtyPath = (path) => files.has(path) && isDirty(path);
 
   function setVim(on) {
     vimOn = on;
@@ -272,6 +273,7 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
     save,
     run,
     hasUnsaved,
+    isDirtyPath,
     setVim,
     setLanguage,
     view,
