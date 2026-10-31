@@ -8,7 +8,9 @@ import {
   haskell, indentUnit, indentWithTab, keymap, Prec, python, rust, rustLanguage,
   syntaxHighlighting, tags as t, vim,
 } from "./codemirror.js";
-import { languageById, runCommand, solutionPath, templateFor } from "./languages.js";
+import { languageById, languageFromPath, runCommand, solutionPath, templateFor } from "./languages.js";
+
+export const MAX_EDITOR_BYTES = 1_048_576;
 
 const theme = EditorView.theme({
   "&": { height: "100%", color: "#dfe3d6", backgroundColor: "#0b0d09" },
@@ -141,7 +143,13 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
       if (id !== opening) return;
       if (!isDirty(path)) {
         const template = templateFor(problem, lang);
-        files.set(path, { state: makeState(saved ?? template, false, lang), saved, template });
+        files.set(path, {
+          state: makeState(saved ?? template, false, lang),
+          saved,
+          template,
+          language: lang,
+          problem,
+        });
         if (current?.path === path) view.setState(files.get(path).state);
       }
     }
@@ -151,6 +159,72 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
       view.setState(files.get(path).state);
     }
     report();
+  }
+
+  async function openPath(path) {
+    const id = ++opening;
+    const fileLang = languageFromPath(path);
+    if (!isDirty(path)) {
+      if (current?.path !== path) onStatus(`${home(path)} · loading…`, "");
+      const saved = await vm.readFile(path);
+      if (id !== opening) return false;
+      if (saved === null) {
+        onStatus(`${home(path)} · not found`, "");
+        return false;
+      }
+      if (saved.length > MAX_EDITOR_BYTES) {
+        onStatus(`${home(path)} · file too large`, "");
+        return false;
+      }
+      if (saved.slice(0, 8192).includes("\0")) {
+        onStatus(`${home(path)} · binary file`, "");
+        return false;
+      }
+      if (!isDirty(path)) {
+        files.set(path, {
+          state: makeState(saved, false, fileLang),
+          saved,
+          template: saved,
+          language: fileLang,
+        });
+      }
+    }
+    if (!files.has(path)) return false;
+    if (current?.path !== path) {
+      if (current) files.get(current.path).state = view.state;
+      const f = files.get(path);
+      current = f.problem ? { path, problem: f.problem } : { path };
+      view.setState(f.state);
+    }
+    report();
+    return true;
+  }
+
+  function closePath(path) {
+    if (!files.has(path)) return;
+    const wasCurrent = current?.path === path;
+    files.delete(path);
+    if (!wasCurrent) return;
+    const remaining = [...files.keys()];
+    if (remaining.length === 0) {
+      current = null;
+      view.setState(makeState("", true, lang));
+      onStatus("", "");
+      return;
+    }
+    const nextPath = remaining[remaining.length - 1];
+    const f = files.get(nextPath);
+    current = f.problem ? { path: nextPath, problem: f.problem } : { path: nextPath };
+    view.setState(f.state);
+    report();
+  }
+
+  function getOpenPaths() {
+    return [...files.keys()];
+  }
+
+  function currentPath() {
+    return current?.path ?? null;
   }
 
   async function save() {
@@ -167,7 +241,10 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
   // Save, then compile/run the file in the terminal (Ctrl-U first clears
   // whatever is typed at the prompt).
   async function run() {
-    if (current && (await save())) vm.type(`\x15${runCommand(current.path, lang)}\n`);
+    if (current && (await save())) {
+      const fileLang = files.get(current.path)?.language ?? lang;
+      vm.type(`\x15${runCommand(current.path, fileLang)}\n`);
+    }
   }
 
   const hasUnsaved = () => [...files.keys()].some(isDirty);
@@ -186,5 +263,18 @@ export function createEditor({ parent, vm, onStatus, vim: vimOn = false, languag
     if (current) await open(current.problem);
   }
 
-  return { open, save, run, hasUnsaved, setVim, setLanguage, view, focus: () => view.focus() };
+  return {
+    open,
+    openPath,
+    closePath,
+    getOpenPaths,
+    currentPath,
+    save,
+    run,
+    hasUnsaved,
+    setVim,
+    setLanguage,
+    view,
+    focus: () => view.focus(),
+  };
 }

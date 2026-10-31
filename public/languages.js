@@ -17,6 +17,12 @@ export function languageById(id) {
   return LANGUAGES.find((l) => l.id === id) ?? LANGUAGES[0];
 }
 
+export function languageFromPath(path) {
+  const m = path.toLowerCase().match(/\.([^./]+)$/);
+  const ext = m?.[1];
+  return LANGUAGES.find((l) => l.ext === ext) ?? languageById(DEFAULT_LANG);
+}
+
 // Server sends solutionFile with a .py suffix; swap the extension for the
 // selected language.
 export function solutionPath(problem, lang) {
