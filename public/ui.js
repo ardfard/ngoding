@@ -228,7 +228,7 @@ export async function startApp(vm) {
 
   const t0 = performance.now();
   vm
-    .boot({ term, problems, inputs, session: token, setStatus, onSave })
+    .boot({ term, problems, inputs, session: token, saveKey: "vm:problems", setStatus, onSave })
     .then(({ restored }) => {
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       setStatus(ready, "ready");

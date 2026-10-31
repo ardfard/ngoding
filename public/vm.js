@@ -8,8 +8,22 @@ import { V86 } from "/vendor/v86/libv86.mjs";
 import { MEMORY_SIZE } from "./v86-config.js";
 import * as store from "./store.js";
 
-const SAVE_KEY = "snapshot";
+const LEGACY_SAVE_KEY = "snapshot";
+let saveKey = "vm:problems";
 const AUTOSAVE_MS = 60_000;
+
+async function loadSaved(key) {
+  let saved = await store.get(key);
+  if (!saved && key === "vm:problems") {
+    const legacy = await store.get(LEGACY_SAVE_KEY);
+    if (legacy) {
+      await store.put(key, legacy);
+      await store.del(LEGACY_SAVE_KEY);
+      saved = legacy;
+    }
+  }
+  return saved;
+}
 
 const encoder = new TextEncoder();
 let emulator;
@@ -63,15 +77,16 @@ const gunzip = (blob) => new Response(blob.stream().pipeThrough(new Decompressio
 
 // Resolves to { restored: savedAt | null } once the student's shell is usable.
 export async function boot(ctx) {
-  const { term, problems, inputs, setStatus } = ctx;
+  const { term, problems = [], inputs = {}, setStatus } = ctx;
+  saveKey = ctx.saveKey;
   session = ctx.session;
   onSave = ctx.onSave ?? onSave;
 
   ({ state: image } = await (await fetch("/v86/version.json", { cache: "no-cache" })).json());
-  let saved = await store.get(SAVE_KEY);
+  let saved = await loadSaved(saveKey);
   if (saved && (saved.image !== image || saved.session !== session)) {
     if (saved.image !== image) term.write("The sandbox image was updated, so your previous files were reset.\n");
-    await store.del(SAVE_KEY);
+    await store.del(saveKey);
     saved = null;
   }
 
@@ -122,7 +137,7 @@ export async function boot(ctx) {
   term.onResize(({ rows, cols }) => agent("resize", rows, cols));
 
   // A saved session already has its inputs (and whatever the student did).
-  if (!saved) {
+  if (!saved && problems.length) {
     setStatus("copying challenge inputs…");
     for (const p of problems) {
       const { status } = await agent("write", p.inputFile, toBase64(encoder.encode(inputs[p.id])));
@@ -147,7 +162,7 @@ export function save() {
     const state = await emulator.save_state();
     const blob = await gzip(state);
     const savedAt = Date.now();
-    await store.put(SAVE_KEY, { image, session, savedAt, blob });
+    await store.put(saveKey, { image, session, savedAt, blob });
     onSave({ savedAt, bytes: blob.size });
   })().finally(() => {
     saving = null;
@@ -173,6 +188,32 @@ export function type(text) {
   emulator.serial_send_bytes(0, encoder.encode(text));
 }
 
+export async function listDir(path) {
+  const { status, data } = await agent("ls", path);
+  if (status !== 0) return null;
+  const text = fromBase64(data);
+  if (!text) return [];
+  return text.split("\n").filter(Boolean).map((line) => {
+    const [type, name] = line.split("\t");
+    return { type: type === "d" ? "dir" : "file", name };
+  });
+}
+
+export async function mkdir(path) {
+  dirty = true;
+  return (await agent("mkdir", path)).status === 0;
+}
+
+export async function rm(path) {
+  dirty = true;
+  return (await agent("rm", path)).status === 0;
+}
+
+export async function mv(from, to) {
+  dirty = true;
+  return (await agent("mv", from, to)).status === 0;
+}
+
 export async function reset() {
-  await store.del(SAVE_KEY);
+  await store.del(saveKey);
 }
