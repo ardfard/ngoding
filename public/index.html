@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ngoding</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/home.js"></script>
+  </head>
+  <body class="home">
+    <main class="home-shell">
+      <header class="home-hero">
+        <h1 class="home-brand">ngoding</h1>
+        <p class="home-tagline">Coding exercises in an in-browser Linux sandbox.</p>
+      </header>
+      <div class="home-panels">
+        <section class="home-panel" id="playground-panel" aria-labelledby="playground-heading">
+          <p class="home-panel-label" id="playground-heading">PLAYGROUND</p>
+          <p class="home-panel-blurb">Open-ended IDE. Each session keeps its own sandbox.</p>
+          <button type="button" id="new-session" class="home-btn home-btn-primary">New session</button>
+          <ul id="session-list" class="session-list"></ul>
+          <p id="session-empty" class="home-empty" hidden>No sessions yet. Start one above.</p>
+        </section>
+        <section class="home-panel" id="exercise-panel" aria-labelledby="exercise-heading">
+          <p class="home-panel-label" id="exercise-heading">EXERCISE</p>
+          <p class="home-panel-blurb">Graded problems. Continue from the first unsolved.</p>
+          <p id="exercise-stats" class="home-stats">…</p>
+          <a id="start-exercise" class="home-btn home-btn-secondary" href="/exercise">Start</a>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

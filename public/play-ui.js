@@ -3,6 +3,14 @@ import { findBuild, resolveBuild } from "./build-cmd.js";
 import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
 import { languageFromPath } from "./languages.js";
+import {
+  LEGACY_PLAY_SAVE_KEY,
+  getSession,
+  migrateLegacyPlayMeta,
+  playSaveKey,
+  touchSession,
+} from "./play-sessions.js";
+import * as store from "./store.js";
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEY = "ngoding.play.build";
@@ -28,6 +36,21 @@ function shellQuote(path) {
 }
 
 export async function startPlay(vm) {
+  const params = new URLSearchParams(location.search);
+  let sessionId = params.get("s");
+  const legacy = await store.get(LEGACY_PLAY_SAVE_KEY);
+  const migrated = migrateLegacyPlayMeta(!!legacy);
+  if (migrated && legacy) {
+    await store.put(playSaveKey(migrated.id), legacy);
+    await store.del(LEGACY_PLAY_SAVE_KEY);
+    if (!sessionId) sessionId = migrated.id;
+  }
+  if (!sessionId || !getSession(sessionId)) {
+    location.replace("/");
+    return;
+  }
+  touchSession(sessionId);
+
   let ready = "";
   let booted = false;
   /** @type {{ command: string, dir: string } | null} */
@@ -303,7 +326,15 @@ export async function startPlay(vm) {
 
   const t0 = performance.now();
   vm
-    .boot({ term, problems: [], inputs: {}, session: "play", saveKey: "vm:play", setStatus, onSave })
+    .boot({
+      term,
+      problems: [],
+      inputs: {},
+      session: sessionId,
+      saveKey: playSaveKey(sessionId),
+      setStatus,
+      onSave,
+    })
     .then(async ({ restored }) => {
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       setStatus(ready, "ready");

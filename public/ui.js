@@ -14,7 +14,9 @@
 
 import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
 import { createEditor } from "./editor.js";
+import { pickExerciseProblem } from "./exercise-progress.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
+import * as store from "./store.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -57,11 +59,19 @@ export async function startApp(vm) {
     localStorage.removeItem("ngoding.solved");
   }
   const solved = new Set(JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]"));
-  let current = problems[0];
+  let current = pickExerciseProblem(problems, solved) ?? problems[0];
   let ready = "";
   let booted = false;
   let problemFilter = "";
   let menuOpen = false;
+
+  {
+    const legacy = await store.get("vm:problems");
+    if (legacy && !(await store.get("vm:exercise"))) {
+      await store.put("vm:exercise", legacy);
+      await store.del("vm:problems");
+    }
+  }
 
   function setStatus(text, cls = "") {
     $("status").textContent = text;
@@ -339,7 +349,7 @@ export async function startApp(vm) {
 
   const t0 = performance.now();
   vm
-    .boot({ term, problems, inputs, session: token, saveKey: "vm:problems", setStatus, onSave })
+    .boot({ term, problems, inputs, session: token, saveKey: "vm:exercise", setStatus, onSave })
     .then(({ restored }) => {
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       setStatus(ready, "ready");

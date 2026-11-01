@@ -4,7 +4,8 @@
 import { chromium } from "playwright-core";
 import { readFileSync } from "node:fs";
 
-const APP_URL = process.env.URL ?? "http://localhost:8080/problems";
+const APP_URL = process.env.URL ?? "http://localhost:8080/exercise";
+const HOME_URL = new URL("/", APP_URL).href;
 const browser = await chromium.launch({ executablePath: process.argv[2] ?? "/usr/bin/chromium" });
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 850 } })).newPage();
 page.on("pageerror", (e) => console.error("pageerror:", e.message));
@@ -81,6 +82,16 @@ const expect = (label, ok, detail) => {
   failed ||= !ok;
 };
 
+{
+  const home = await browser.newPage();
+  await home.goto(HOME_URL);
+  expect("home has new session", await home.locator("#new-session").isVisible());
+  expect("home has exercise CTA", await home.locator("#start-exercise").isVisible());
+  const bounced = await home.goto(new URL("/problems", APP_URL).href, { waitUntil: "domcontentloaded" });
+  expect("/problems redirects to /exercise", home.url().includes("/exercise"), `url=${home.url()} status=${bounced?.status()}`);
+  await home.close();
+}
+
 const t0 = Date.now();
 await page.goto(APP_URL);
 await page.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 600_000 });
@@ -89,6 +100,8 @@ await screenIncludes("$").catch(async (e) => {
   console.error(`no shell prompt\n--- terminal ---\n${await screen()}`);
   throw e;
 });
+expect("exercise has no mode toggle", (await page.locator(".mode-segment").count()) === 0);
+expect("exercise brand links home", await page.locator('a.brand[href="/"]').count() === 1);
 
 const editorText = () => page.evaluate(() => window.ngoding.editor.view.state.doc.toString());
 const editorStatus = () => page.locator("#editor-status").innerText();
@@ -237,13 +250,17 @@ await page.waitForFunction(() => document.getElementById("status").textContent.s
 await page.waitForFunction(async () => (await window.ngoding.vm.readFile("/home/user/problems-marker")) === "x", null, { timeout: 60_000 });
 await screenIncludes("$", 60_000);
 
-const PLAY_URL = new URL("/play", APP_URL).href;
 const playCtx = await browser.newContext({ viewport: { width: 1400, height: 850 } });
 const playPage = await playCtx.newPage();
 playPage.on("pageerror", (e) => console.error("play pageerror:", e.message));
 
-await playPage.goto(PLAY_URL);
-await playPage.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 600_000 });
+await playPage.goto(HOME_URL);
+await playPage.locator("#new-session").click();
+await playPage.waitForURL(/\/play\?s=/);
+expect("new session opens /play?s=", /\/play\?s=/.test(playPage.url()));
+expect("play has no mode toggle", (await playPage.locator(".mode-segment").count()) === 0);
+expect("play brand links home", await playPage.locator('a.brand[href="/"]').count() === 1);
+await playPage.waitForFunction(() => document.getElementById("status")?.textContent.startsWith("ready"), null, { timeout: 600_000 });
 await screenIncludesOn(playPage, "$", 120_000).catch(async (e) => {
   console.error(`play: no shell prompt\n--- terminal ---\n${await playPage.evaluate(screenText)}`);
   throw e;
@@ -323,9 +340,9 @@ await playCtx.close();
 
 await page.reload();
 await page.waitForFunction(() => document.getElementById("status").textContent.startsWith("ready"), null, { timeout: 600_000 });
-expect("problems restore after play reset", (await page.locator("#status").innerText()).includes("restored"));
+expect("exercise restores after play reset", (await page.locator("#status").innerText()).includes("restored"));
 await page.waitForFunction(async () => (await window.ngoding.vm.readFile("/home/user/problems-marker")) === "x", null, { timeout: 60_000 })
-  .then(() => expect("problems marker survives play reset", true), () => expect("problems marker survives play reset", false));
+  .then(() => expect("exercise marker survives play reset", true), () => expect("exercise marker survives play reset", false));
 
 await browser.close();
 process.exit(failed ? 1 : 0);

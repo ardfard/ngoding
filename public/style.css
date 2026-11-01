@@ -64,7 +64,10 @@ aside#sidebar {
   align-items: flex-start;
   gap: 1px;
   min-width: 0;
+  text-decoration: none;
+  color: inherit;
 }
+a.brand:hover h1 { color: var(--accent); }
 
 h1 {
   margin: 0;
@@ -1017,4 +1020,169 @@ body.play {
   #sidebar-backdrop {
     display: none !important;
   }
+}
+
+/* —— Landing / home —— */
+body.home {
+  display: block;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.home-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 72px 48px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.home-brand {
+  margin: 0;
+  font: 600 48px/1.1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: 1px;
+  color: var(--fg);
+}
+
+.home-tagline {
+  margin: 12px 0 0;
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.home-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.home-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.home-panel-label {
+  margin: 0;
+  font: 400 12px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.home-panel-blurb {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fg);
+}
+
+.home-stats {
+  margin: 0;
+  font: 400 16px/1.3 "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--accent);
+}
+
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 0;
+  font: 600 14px/1 "IBM Plex Mono", ui-monospace, monospace;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.home-btn-secondary {
+  background: var(--seg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+
+.home-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.session-open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.session-name {
+  font-size: 15px;
+  color: var(--fg);
+}
+
+.session-when {
+  font: 400 12px/1 "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.session-delete {
+  border: none;
+  background: none;
+  color: var(--bad);
+  font: 400 12px/1 "IBM Plex Mono", ui-monospace, monospace;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.home-empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .home-shell {
+    padding: 40px 24px 48px;
+    gap: 28px;
+  }
+  .home-brand { font-size: 36px; }
+  .home-tagline { font-size: 15px; }
+  .home-panels {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .home-panel { padding: 20px; }
 }

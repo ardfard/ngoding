@@ -44,12 +44,17 @@ macro_rules! embed {
     };
 }
 const APP: &[(&str, &str, &[u8])] = embed! {
+    "/" => "public/index.html",
+    "/home.js" => "public/home.js",
+    "/play-sessions.js" => "public/play-sessions.js",
+    "/exercise-progress.js" => "public/exercise-progress.js",
     "/play" => "public/play.html",
     "/play.js" => "public/play.js",
     "/play-ui.js" => "public/play-ui.js",
     "/file-tree.js" => "public/file-tree.js",
     "/build-cmd.js" => "public/build-cmd.js",
-    "/problems" => "public/problems.html",
+    "/exercise" => "public/exercise.html",
+    "/exercise.js" => "public/exercise.js",
     "/problems.js" => "public/problems.js",
     "/editor.js" => "public/editor.js",
     "/languages.js" => "public/languages.js",
@@ -246,7 +251,7 @@ async fn main() -> std::io::Result<()> {
     }
     let sessions = Arc::new(Sessions::new(&load_secret()?));
     let app = Router::new()
-        .route("/", any(|| async { Redirect::temporary("/play") }))
+        .route("/problems", any(|| async { Redirect::temporary("/exercise") }))
         .route("/api/session", any(api))
         .route("/api/grade", any(api))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
@@ -280,7 +285,8 @@ mod tests {
 
     #[test]
     fn app_files_are_embedded() {
-        assert_eq!(content_type(EMBEDDED["/problems"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/exercise"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/play"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/vendor/v86/v86.wasm"].path), "application/wasm");
         assert!(EMBEDDED["/vendor/v86/libv86.mjs"].body.len() > 100_000);

@@ -1,15 +1,18 @@
 # ngoding — coding exercises in an in-browser Linux sandbox (PoC)
 
-The app has two pages that share the same in-browser Debian VM:
+The app shares one in-browser Debian VM image across modes:
 
-- **`/play`** (and **`/`**, which redirects there) is a small IDE: file tree under
-  `~/`, editor tabs, **Run**, and an auto-detected **Build** command you can override.
-  Nothing is graded.
-- **`/problems`** is the exercise mode: pick a problem, edit its solution file, run it
-  in the shell, and **Check** sends the output to the server for grading.
+- **`/`** is the home page: start a playground session or continue exercises
+  (`solved N/total` stats).
+- **`/play?s=<id>`** is the playground IDE: file tree under `~/`, editor tabs,
+  **Run**, and an auto-detected **Build** command you can override. Multiple
+  local sessions each keep their own IndexedDB snapshot (`vm:play:<id>`).
+- **`/exercise`** is graded mode (formerly `/problems`, which redirects here):
+  pick a problem, edit its solution, run it in the shell, and **Check** sends
+  output to the server. Progress is solved / not yet (`ngoding.solved`).
 
-Play and Problems each keep their own VM snapshot in IndexedDB (`vm:play` vs
-`vm:problems`), so sandbox experiments do not overwrite exercise work.
+Play sessions and Exercise keep separate VM snapshots so sandbox experiments
+do not overwrite exercise work.
 
 The VM is [v86](https://github.com/copy/v86), a BSD-licensed emulator of a full x86 PC
 that JIT-compiles to WebAssembly. It runs a real Debian kernel. The root filesystem is
@@ -21,15 +24,16 @@ snapshot taken after boot, so students never wait for Linux to start.
 
 ```
 ┌──────────── browser tab ──────────────────────────────────────────────────┐
-│ /play: play-ui.js — tree, tabs, Run/Build                          │ ttyS0 │
-│ /problems: ui.js — problems, [Check], editor        ghostty-web ⇄ shell   │
+│ /: home.js — sessions + exercise stats                                     │
+│ /play?s=: play-ui.js — tree, tabs, Run/Build                       │ ttyS0 │
+│ /exercise: ui.js — exercises, [Check], editor       ghostty-web ⇄ shell   │
 │                                                                               │
-│ vm.js: boot / readFile / save (key vm:play | vm:problems) ──┼─► ttyS1     │
+│ vm.js: boot / save (vm:play:<id> | vm:exercise) ───────────────┼─► ttyS1   │
 │   save → IndexedDB                         root agent: FS + grade I/O       │
 │ v86 (wasm) ── 9p root fs ── fetches /v86/flat/<hash>.bin.zst on demand     │
 └──────────────┬────────────────────────────────────────────────────────────┘
-               │ /problems only: POST /api/session → token, problems, inputs
-               │                POST /api/grade   {token, problemId, output}
+               │ /exercise only: POST /api/session → token, problems, inputs
+               │                 POST /api/grade   {token, problemId, output}
 ┌──────────────┴──────────────── src/main.rs (Rust) ────────────────────────┐
 │ static files (cached) + src/problems.rs (solvers) + src/session.rs (HMAC)  │
 └───────────────────────────────────────────────────────────────────────────┘
@@ -41,11 +45,11 @@ snapshot taken after boot, so students never wait for Linux to start.
 npm install           # browser deps (ghostty-web, v86), embedded by cargo; Playwright for e2e
 npm run build:image   # docker + node: public/v86/{fs.json,flat/,state-<hash>.bin.zst} (~220 MB)
                       # run again after changing image/agent.sh (new agent verbs, etc.)
-npm start             # cargo run --release: http://localhost:8080  → /play and /problems
+npm start             # cargo run --release: http://localhost:8080  → /, /play, /exercise
 npm test              # cargo test: checks the reference solvers against Python solutions
 npm run test:unit     # node --test: build detection, language helpers (no VM)
 npm run test:e2e      # with the server running: boots the VM in headless Chromium,
-                      # Play + Problems (separate saves), solves both problems, grades them,
+                      # home, Play sessions + Exercise (separate saves), grades problems,
                       # runs uv, checks Ctrl-C, the editor (autocomplete, run), server-side
                       # grading, saving + restoring work,
                       # and that a reload is served from cache
