@@ -29,5 +29,25 @@
         </section>
       </div>
     </main>
+    <dialog id="session-template-dialog" class="session-template-dialog" aria-labelledby="session-template-title">
+      <form id="session-template-form" class="session-template-modal">
+        <header class="session-template-header">
+          <h2 id="session-template-title">New session</h2>
+          <p class="session-template-sub">Choose a language template for boilerplate, or start with a blank project.</p>
+        </header>
+        <div class="session-template-body">
+          <button type="button" class="session-template-card" data-template="blank">
+            <span class="session-template-name">Blank project</span>
+            <span class="session-template-detail">Empty workspace — no starter files</span>
+          </button>
+          <p class="session-template-lang-label">LANGUAGE TEMPLATES</p>
+          <div id="session-template-langs" class="session-template-grid"></div>
+        </div>
+        <footer class="session-template-footer">
+          <button type="button" id="session-template-cancel" class="home-btn home-btn-secondary">Cancel</button>
+          <button type="submit" id="session-template-create" class="home-btn home-btn-primary">Create session</button>
+        </footer>
+      </form>
+    </dialog>
   </body>
 </html>

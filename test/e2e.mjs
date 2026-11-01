@@ -256,6 +256,9 @@ playPage.on("pageerror", (e) => console.error("play pageerror:", e.message));
 
 await playPage.goto(HOME_URL);
 await playPage.locator("#new-session").click();
+await playPage.locator("#session-template-dialog").waitFor({ state: "visible" });
+await playPage.locator('#session-template-dialog [data-template="blank"]').click();
+await playPage.locator("#session-template-create").click();
 await playPage.waitForURL(/\/play\?s=/);
 expect("new session opens /play?s=", /\/play\?s=/.test(playPage.url()));
 expect("play has no mode toggle", (await playPage.locator(".mode-segment").count()) === 0);

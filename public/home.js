@@ -1,4 +1,5 @@
 import { exerciseStats } from "./exercise-progress.js";
+import { LANGUAGES } from "./languages.js";
 import { createSession, listSessions, playSaveKey, removeSession, touchSession } from "./play-sessions.js";
 import * as store from "./store.js";
 
@@ -50,9 +51,56 @@ function renderSessions() {
   }
 }
 
-$("new-session").onclick = () => {
-  const s = createSession();
+const TEMPLATE_DETAIL = {
+  python: "main.py · hello boilerplate",
+  c: "main.c · hello boilerplate",
+  cpp: "main.cpp · hello boilerplate",
+  go: "main.go · hello boilerplate",
+  rust: "Cargo.toml · src/main.rs",
+  haskell: "Main.hs · hello boilerplate",
+};
+
+const dialog = $("session-template-dialog");
+const form = $("session-template-form");
+const langGrid = $("session-template-langs");
+let selectedTemplate = "python";
+
+function setSelected(id) {
+  selectedTemplate = id;
+  for (const card of dialog.querySelectorAll("[data-template]")) {
+    const on = card.dataset.template === id;
+    card.classList.toggle("is-selected", on);
+    card.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+
+for (const lang of LANGUAGES) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "session-template-card";
+  btn.dataset.template = lang.id;
+  btn.innerHTML =
+    `<span class="session-template-name">${lang.label}</span>` +
+    `<span class="session-template-detail">${TEMPLATE_DETAIL[lang.id] ?? lang.ext}</span>`;
+  langGrid.append(btn);
+}
+
+dialog.addEventListener("click", (e) => {
+  const card = e.target.closest("[data-template]");
+  if (card) setSelected(card.dataset.template);
+});
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const s = createSession(Date.now(), { template: selectedTemplate });
   location.href = `/play?s=${encodeURIComponent(s.id)}`;
+});
+
+$("session-template-cancel").onclick = () => dialog.close();
+
+$("new-session").onclick = () => {
+  setSelected("python");
+  dialog.showModal();
 };
 
 renderSessions();

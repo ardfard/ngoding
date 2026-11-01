@@ -12,7 +12,8 @@ function isSession(v) {
     typeof v.id === "string" &&
     typeof v.name === "string" &&
     typeof v.createdAt === "number" &&
-    typeof v.updatedAt === "number"
+    typeof v.updatedAt === "number" &&
+    (v.template === undefined || typeof v.template === "string")
   );
 }
 
@@ -44,18 +45,18 @@ export function getSession(id) {
   return readRaw().find((s) => s.id === id) ?? null;
 }
 
-export function createSession(now = Date.now()) {
+export function createSession(now = Date.now(), { template = "blank" } = {}) {
   const existing = readRaw();
   const session = {
     id: crypto.randomUUID(),
     name: `Session ${existing.length + 1}`,
     createdAt: now,
     updatedAt: now,
+    template: typeof template === "string" && template ? template : "blank",
   };
   writeRaw([...existing, session]);
   return session;
 }
-
 export function touchSession(id, now = Date.now()) {
   const existing = readRaw();
   const i = existing.findIndex((s) => s.id === id);

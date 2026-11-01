@@ -17,6 +17,93 @@ export function languageById(id) {
   return LANGUAGES.find((l) => l.id === id) ?? LANGUAGES[0];
 }
 
+/** Playground starter files relative to the session workspace. `blank` → none. */
+export function playgroundTemplate(id) {
+  if (!id || id === "blank") return { files: [], open: null };
+  switch (id) {
+    case "python":
+      return {
+        open: "main.py",
+        files: [{ path: "main.py", content: 'print("Hello, ngoding!")\n' }],
+      };
+    case "c":
+      return {
+        open: "main.c",
+        files: [{
+          path: "main.c",
+          content: `#include <stdio.h>
+
+int main(void) {
+    puts("Hello, ngoding!");
+    return 0;
+}
+`,
+        }],
+      };
+    case "cpp":
+      return {
+        open: "main.cpp",
+        files: [{
+          path: "main.cpp",
+          content: `#include <iostream>
+
+int main() {
+    std::cout << "Hello, ngoding!" << std::endl;
+}
+`,
+        }],
+      };
+    case "go":
+      return {
+        open: "main.go",
+        files: [{
+          path: "main.go",
+          content: `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, ngoding!")
+}
+`,
+        }],
+      };
+    case "rust":
+      return {
+        open: "src/main.rs",
+        files: [
+          {
+            path: "Cargo.toml",
+            content: `[package]
+name = "ngoding"
+version = "0.1.0"
+edition = "2021"
+`,
+          },
+          {
+            path: "src/main.rs",
+            content: `fn main() {
+    println!("Hello, ngoding!");
+}
+`,
+          },
+        ],
+      };
+    case "haskell":
+      return {
+        open: "Main.hs",
+        files: [{
+          path: "Main.hs",
+          content: `main :: IO ()
+main = putStrLn "Hello, ngoding!"
+`,
+        }],
+      };
+    default:
+      return playgroundTemplate("blank");
+  }
+}
+
 export function languageFromPath(path) {
   const m = path.toLowerCase().match(/\.([^./]+)$/);
   const ext = m?.[1];

@@ -2,7 +2,7 @@ import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
 import { findBuild, resolveBuild } from "./build-cmd.js";
 import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
-import { languageFromPath } from "./languages.js";
+import { languageFromPath, playgroundTemplate } from "./languages.js";
 import {
   LEGACY_PLAY_SAVE_KEY,
   getSession,
@@ -194,6 +194,37 @@ export async function startPlay(vm) {
     vm.type(`cd ${shellQuote(WORKSPACE)}\n`);
   }
 
+  async function ensureParentDirs(absPath) {
+    if (!absPath.startsWith(`${WORKSPACE}/`)) return;
+    const parts = absPath.slice(WORKSPACE.length + 1).split("/");
+    parts.pop();
+    let cur = WORKSPACE;
+    for (const part of parts) {
+      cur += `/${part}`;
+      const parent = cur.slice(0, cur.lastIndexOf("/")) || "/";
+      const entries = await vm.listDir(parent);
+      if (entries?.some((e) => e.name === part && e.type === "dir")) continue;
+      if (!(await vm.mkdir(cur))) throw new Error(`could not create ${cur}`);
+    }
+  }
+
+  /** Seed hello-world boilerplate once on a fresh (non-restored) session. */
+  async function seedTemplate(templateId) {
+    const tpl = playgroundTemplate(templateId);
+    for (const file of tpl.files) {
+      const abs = `${WORKSPACE}/${file.path}`;
+      await ensureParentDirs(abs);
+      if (!(await vm.writeFile(abs, file.content))) {
+        throw new Error(`could not write ${abs}`);
+      }
+    }
+    if (tpl.open) {
+      const abs = `${WORKSPACE}/${tpl.open}`;
+      await editor.openPath(abs);
+      renderTabs();
+    }
+  }
+
   async function reset() {
     if (!confirm("Reset Play sandbox? This deletes your saved Play VM state.")) return;
     await vm.reset();
@@ -346,6 +377,10 @@ export async function startPlay(vm) {
     })
     .then(async ({ restored }) => {
       await prepareWorkspace();
+      const session = getSession(sessionId);
+      if (!restored && session?.template && session.template !== "blank") {
+        await seedTemplate(session.template);
+      }
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       setStatus(ready, "ready");
       booted = true;

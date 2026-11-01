@@ -35,10 +35,17 @@ describe("createSession + listSessions", () => {
     const b = createSession(2000);
     assert.equal(a.name, "Session 1");
     assert.equal(b.name, "Session 2");
+    assert.equal(a.template, "blank");
     assert.deepEqual(
       listSessions().map((s) => s.id),
       [b.id, a.id],
     );
+  });
+
+  it("stores a language template id", () => {
+    const s = createSession(1000, { template: "rust" });
+    assert.equal(s.template, "rust");
+    assert.equal(getSession(s.id).template, "rust");
   });
 });
 
