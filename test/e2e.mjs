@@ -266,37 +266,63 @@ await screenIncludesOn(playPage, "$", 120_000).catch(async (e) => {
   throw e;
 });
 
-const names = await playPage.evaluate(async () => {
+const homeNames = await playPage.evaluate(async () => {
   const entries = await window.ngoding.vm.listDir("/home/user");
   return entries?.map((e) => e.name) ?? null;
 });
-expect("play lists home", Array.isArray(names));
+expect("play has workspace", Array.isArray(homeNames) && homeNames.includes("workspace"));
+expect("play has no challenge dir", Array.isArray(homeNames) && !homeNames.includes("challenge"));
+expect("play has no output dir", Array.isArray(homeNames) && !homeNames.includes("output"));
+
+const wsNames = await playPage.evaluate(async () => {
+  const entries = await window.ngoding.vm.listDir("/home/user/workspace");
+  return entries?.map((e) => e.name) ?? null;
+});
+expect("play lists workspace", Array.isArray(wsNames));
+
+await playPage.evaluate(() => window.ngoding.vm.type("pwd\n"));
+await screenIncludesOn(playPage, "/home/user/workspace", 60_000)
+  .then(() => expect("play shell starts in workspace", true), () => expect("play shell starts in workspace", false));
+
+await playPage.getByRole("button", { name: "New file" }).click();
+await playPage.locator(".tree-name-edit").fill("from-ui.py");
+await playPage.locator(".tree-name-edit").press("Enter");
+await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/workspace/from-ui.py", null, { timeout: 30_000 });
+expect(
+  "play new-file button creates from-ui.py",
+  (await playPage.evaluate(() => window.ngoding.editor.currentPath())) === "/home/user/workspace/from-ui.py",
+);
+await playPage.evaluate(async () => {
+  await window.ngoding.vm.rm("/home/user/workspace/from-ui.py");
+  window.ngoding.editor.closePath("/home/user/workspace/from-ui.py");
+  await window.ngoding.tree.refresh();
+});
 
 await playPage.evaluate(async () => {
-  await window.ngoding.vm.writeFile("/home/user/hello.py", "print(42)\n");
+  await window.ngoding.vm.writeFile("/home/user/workspace/hello.py", "print(42)\n");
 });
 await playPage.evaluate(() => window.ngoding.tree.refresh());
-await playPage.evaluate(() => window.ngoding.editor.openPath("/home/user/hello.py"));
-await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/hello.py");
+await playPage.evaluate(() => window.ngoding.editor.openPath("/home/user/workspace/hello.py"));
+await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/workspace/hello.py");
 await playPage.evaluate(async () => {
   await window.ngoding.editor.save();
 });
-expect("play opens hello.py", (await playPage.evaluate(() => window.ngoding.editor.currentPath())) === "/home/user/hello.py");
+expect("play opens hello.py", (await playPage.evaluate(() => window.ngoding.editor.currentPath())) === "/home/user/workspace/hello.py");
 
 await playPage.evaluate(async () => {
-  await window.ngoding.vm.mv("/home/user/hello.py", "/home/user/hi.py");
-  window.ngoding.editor.closePath("/home/user/hello.py");
+  await window.ngoding.vm.mv("/home/user/workspace/hello.py", "/home/user/workspace/hi.py");
+  window.ngoding.editor.closePath("/home/user/workspace/hello.py");
   await window.ngoding.tree.refresh();
 });
-await playPage.evaluate(() => window.ngoding.editor.openPath("/home/user/hi.py"));
+await playPage.evaluate(() => window.ngoding.editor.openPath("/home/user/workspace/hi.py"));
 await playPage.evaluate(async () => {
-  await window.ngoding.vm.rm("/home/user/hi.py");
-  window.ngoding.editor.closePath("/home/user/hi.py");
+  await window.ngoding.vm.rm("/home/user/workspace/hi.py");
+  window.ngoding.editor.closePath("/home/user/workspace/hi.py");
 });
 
 await playPage.evaluate(async () => {
-  await window.ngoding.vm.writeFile("/home/user/hi.py", "print('play-ok')\n");
-  await window.ngoding.editor.openPath("/home/user/hi.py");
+  await window.ngoding.vm.writeFile("/home/user/workspace/hi.py", "print('play-ok')\n");
+  await window.ngoding.editor.openPath("/home/user/workspace/hi.py");
   await window.ngoding.editor.run();
 });
 await screenIncludesOn(playPage, "play-ok", 120_000)
@@ -304,12 +330,12 @@ await screenIncludesOn(playPage, "play-ok", 120_000)
 
 // VM image has go but not make/cargo; exercise detected build via go.mod.
 await playPage.evaluate(async () => {
-  await window.ngoding.vm.writeFile("/home/user/go.mod", "module play\n\ngo 1.22\n");
-  await window.ngoding.vm.writeFile("/home/user/main.go", "package main\n\nfunc main() {}\n");
+  await window.ngoding.vm.writeFile("/home/user/workspace/go.mod", "module play\n\ngo 1.22\n");
+  await window.ngoding.vm.writeFile("/home/user/workspace/main.go", "package main\n\nfunc main() {}\n");
 });
 await playPage.evaluate(() => window.ngoding.tree.refresh());
 await playPage.getByRole("button", { name: "main.go" }).click();
-await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/main.go");
+await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/workspace/main.go");
 await playPage.waitForFunction(() => !document.getElementById("build-btn").disabled, null, { timeout: 30_000 });
 await playPage.locator("#build-cmd").fill("");
 await playPage.getByRole("button", { name: /^Build/ }).click();

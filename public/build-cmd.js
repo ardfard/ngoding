@@ -21,9 +21,8 @@ export function resolveBuild({ override, detected }) {
   return { command: "", dir: null, source: "none" };
 }
 
-/** Walk from startDir up to /home/user inclusive. listDir(path) -> Promise<string[]>. */
-export async function findBuild(startDir, listDir) {
-  const root = "/home/user";
+/** Walk from startDir up to root inclusive. listDir(path) -> Promise<string[]>. */
+export async function findBuild(startDir, listDir, root = "/home/user") {
   let dir = (startDir || root).replace(/\/$/, "") || root;
   if (dir !== root && !dir.startsWith(root + "/")) dir = root;
   for (;;) {

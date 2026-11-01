@@ -26,6 +26,8 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
   /** @type {{ path: string, type: "dir"|"file" } | null} */
   let selected = { path: root, type: "dir" };
   let renderGen = 0;
+  /** @type {(() => void) | null} */
+  let cancelNameEdit = null;
 
   function setStatus(msg) {
     onStatus?.(msg);
@@ -39,6 +41,7 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
   }
 
   async function render() {
+    cancelNameEdit?.();
     const gen = ++renderGen;
     mount.replaceChildren();
     const ul = document.createElement("ul");
@@ -121,11 +124,88 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
     return selected.type === "dir" ? selected.path : parentDir(selected.path, root);
   }
 
+  function listUlFor(parentPath) {
+    if (parentPath === root) return mount.querySelector(":scope > .tree-root");
+    return mount.querySelector(`[data-path="${CSS.escape(parentPath)}"] > ul`);
+  }
+
+  /** Inline name field — window.prompt is a no-op in many embedded browsers. */
+  function askName({ parentPath, initial = "", kind = "file", ariaLabel }) {
+    cancelNameEdit?.();
+    return new Promise(async (resolve) => {
+      expanded.add(parentPath);
+      await refresh();
+      let ul = listUlFor(parentPath);
+      if (!ul && parentPath !== root) {
+        const parentLi = mount.querySelector(`[data-path="${CSS.escape(parentPath)}"]`);
+        if (parentLi) {
+          ul = document.createElement("ul");
+          parentLi.appendChild(ul);
+        }
+      }
+      if (!ul) {
+        resolve(null);
+        return;
+      }
+
+      const li = document.createElement("li");
+      li.className = "tree-item tree-editing";
+      const row = document.createElement("div");
+      row.className = "tree-row";
+
+      const spacer = document.createElement("span");
+      spacer.className = "tree-toggle-spacer";
+      row.appendChild(spacer);
+
+      const icon = document.createElement("span");
+      icon.className = "tree-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = kind === "dir" ? ICON_FOLDER : ICON_FILE;
+      row.appendChild(icon);
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "tree-name-edit";
+      input.value = initial;
+      input.spellcheck = false;
+      input.setAttribute("aria-label", ariaLabel);
+      row.appendChild(input);
+      li.appendChild(row);
+      ul.prepend(li);
+
+      let done = false;
+      const finish = (value) => {
+        if (done) return;
+        done = true;
+        cancelNameEdit = null;
+        li.remove();
+        resolve(value);
+      };
+      cancelNameEdit = () => finish(null);
+
+      input.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(input.value.trim() || null);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          finish(null);
+        }
+      };
+      input.onblur = () => {
+        // Defer so Enter can resolve first without a double-finish race.
+        requestAnimationFrame(() => finish(input.value.trim() || null));
+      };
+      input.focus();
+      input.select();
+    });
+  }
+
   async function newFile() {
     const parent = targetParent();
-    const name = prompt("New file name");
-    if (!name?.trim()) return;
-    const path = join(parent, name.trim());
+    const name = await askName({ parentPath: parent, kind: "file", ariaLabel: "New file name" });
+    if (!name) return;
+    const path = join(parent, name);
     if (!(await vm.writeFile(path, ""))) {
       setStatus("Could not create file");
       return;
@@ -138,9 +218,9 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
 
   async function newFolder() {
     const parent = targetParent();
-    const name = prompt("New folder name");
-    if (!name?.trim()) return;
-    const path = join(parent, name.trim());
+    const name = await askName({ parentPath: parent, kind: "dir", ariaLabel: "New folder name" });
+    if (!name) return;
+    const path = join(parent, name);
     if (!(await vm.mkdir(path))) {
       setStatus("Could not create folder");
       return;
@@ -151,15 +231,54 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
     select({ path, type: "dir" });
   }
 
+  function askRename(path, initial) {
+    cancelNameEdit?.();
+    const li = mount.querySelector(`[data-path="${CSS.escape(path)}"]`);
+    const label = li?.querySelector(".tree-label");
+    if (!label) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "tree-name-edit";
+      input.value = initial;
+      input.spellcheck = false;
+      input.setAttribute("aria-label", "Rename to");
+      label.replaceWith(input);
+
+      let done = false;
+      const finish = (value) => {
+        if (done) return;
+        done = true;
+        cancelNameEdit = null;
+        input.replaceWith(label);
+        resolve(value);
+      };
+      cancelNameEdit = () => finish(null);
+
+      input.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(input.value.trim() || null);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          finish(null);
+        }
+      };
+      input.onblur = () => requestAnimationFrame(() => finish(input.value.trim() || null));
+      input.focus();
+      input.select();
+    });
+  }
+
   async function rename() {
-    if (!selected) {
+    if (!selected || selected.path === root) {
       setStatus("Select a file or folder");
       return;
     }
     const base = selected.path.slice(selected.path.lastIndexOf("/") + 1);
-    const name = prompt("Rename to", base);
-    if (!name?.trim() || name.trim() === base) return;
-    const dest = join(parentDir(selected.path, root), name.trim());
+    const name = await askRename(selected.path, base);
+    if (!name || name === base) return;
+    const dest = join(parentDir(selected.path, root), name);
     if (!(await vm.mv(selected.path, dest))) {
       setStatus("Rename failed");
       return;

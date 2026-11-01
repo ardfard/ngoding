@@ -1,7 +1,7 @@
 // test/build-cmd.test.mjs
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectBuildInListing, resolveBuild } from "../public/build-cmd.js";
+import { detectBuildInListing, findBuild, resolveBuild } from "../public/build-cmd.js";
 
 describe("detectBuildInListing", () => {
   it("prefers Cargo.toml over Makefile", () => {
@@ -33,5 +33,25 @@ describe("resolveBuild", () => {
   });
   it("none when neither", () => {
     assert.equal(resolveBuild({ override: "", detected: null }).source, "none");
+  });
+});
+
+describe("findBuild", () => {
+  it("stops at a custom root and ignores parents", async () => {
+    const listings = {
+      "/home/user/workspace/src": ["main.go"],
+      "/home/user/workspace": ["src"],
+      "/home/user": ["workspace", "go.mod"],
+    };
+    const hit = await findBuild("/home/user/workspace/src", async (d) => listings[d] ?? [], "/home/user/workspace");
+    assert.equal(hit, null);
+  });
+  it("finds a marker inside the custom root", async () => {
+    const listings = {
+      "/home/user/workspace/src": ["main.go"],
+      "/home/user/workspace": ["src", "go.mod"],
+    };
+    const hit = await findBuild("/home/user/workspace/src", async (d) => listings[d] ?? [], "/home/user/workspace");
+    assert.deepEqual(hit, { command: "go build .", dir: "/home/user/workspace", marker: "go.mod" });
   });
 });

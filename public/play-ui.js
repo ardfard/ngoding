@@ -14,6 +14,7 @@ import * as store from "./store.js";
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEY = "ngoding.play.build";
+const WORKSPACE = "/home/user/workspace";
 
 const LAYOUTS = ["vertical", "horizontal", "editor", "shell"];
 const LAYOUT_TITLE = {
@@ -107,7 +108,7 @@ export async function startPlay(vm) {
   });
 
   const tree = createFileTree({
-    root: "/home/user",
+    root: WORKSPACE,
     mount: $("tree"),
     vm,
     onOpen: async (path) => {
@@ -167,11 +168,11 @@ export async function startPlay(vm) {
 
   async function updateBuild() {
     const path = editor.currentPath();
-    const dir = path ? path.slice(0, path.lastIndexOf("/")) || "/home/user" : "/home/user";
+    const dir = path ? path.slice(0, path.lastIndexOf("/")) || WORKSPACE : WORKSPACE;
     detectedBuild = await findBuild(dir, async (d) => {
       const entries = await vm.listDir(d);
       return entries?.map((e) => e.name) ?? [];
-    });
+    }, WORKSPACE);
     syncBuildInput();
     applyBuildControls();
     const lang = path ? languageFromPath(path) : null;
@@ -181,8 +182,16 @@ export async function startPlay(vm) {
   function runBuild() {
     const resolved = resolveBuild({ override: buildOverrideForResolve(), detected: detectedBuild });
     if (resolved.source === "none") return;
-    const dir = resolved.dir ?? "/home/user";
+    const dir = resolved.dir ?? WORKSPACE;
     vm.type(`cd ${shellQuote(dir)} && ${resolved.command}\n`);
+  }
+
+  /** Drop problem dirs from the shared image; ensure a clean Play workspace. */
+  async function prepareWorkspace() {
+    await vm.rm("/home/user/challenge");
+    await vm.rm("/home/user/output");
+    if (!(await vm.mkdir(WORKSPACE))) throw new Error("could not create workspace");
+    vm.type(`cd ${shellQuote(WORKSPACE)}\n`);
   }
 
   async function reset() {
@@ -336,6 +345,7 @@ export async function startPlay(vm) {
       onSave,
     })
     .then(async ({ restored }) => {
+      await prepareWorkspace();
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       setStatus(ready, "ready");
       booted = true;
