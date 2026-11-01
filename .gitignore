@@ -7,3 +7,6 @@ public/v86/version.json
 .ngoding-secret
 target/
 public/codemirror.js
+
+.worktrees/
+.superpowers/
