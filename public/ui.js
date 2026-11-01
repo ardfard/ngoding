@@ -17,6 +17,7 @@ import { createEditor } from "./editor.js";
 import { pickExerciseProblem } from "./exercise-progress.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 import * as store from "./store.js";
+import { formatPersistStatus, persistPillClass } from "./vm-persist.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -326,7 +327,45 @@ export async function startApp(vm) {
     await editor.setLanguage(lang.id);
     if (layout !== "shell") editor.focus();
   };
-  addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());
+  let persist = { phase: "idle", savedAt: null };
+
+  function showPersist() {
+    if (!ready) return;
+    setStatus(formatPersistStatus({ ready, ...persist }), persistPillClass(persist.phase));
+  }
+
+  function onPersist(p) {
+    persist = { phase: p.phase, savedAt: p.savedAt ?? persist.savedAt };
+    showPersist();
+  }
+
+  async function flushBeforeLeave() {
+    if (editor.hasUnsaved() && !(await editor.saveAll())) {
+      throw new Error("editor save failed");
+    }
+    if (vm.isDirty() || vm.isSaving()) await vm.save();
+  }
+
+  addEventListener("beforeunload", (e) => {
+    if (editor.hasUnsaved() || vm.isDirty() || vm.isSaving()) e.preventDefault();
+  });
+
+  for (const a of document.querySelectorAll('a[href="/"]')) {
+    a.addEventListener("click", (e) => {
+      if (!booted) return;
+      if (!editor.hasUnsaved() && !vm.isDirty() && !vm.isSaving()) return;
+      e.preventDefault();
+      flushBeforeLeave()
+        .then(() => {
+          location.href = a.href;
+        })
+        .catch((err) => {
+          console.error(err);
+          setStatus("could not save session", "error");
+        });
+    });
+  }
+
   renderProblem();
   setEditorShare(editorShare);
   setLayout(layout);
@@ -344,15 +383,15 @@ export async function startApp(vm) {
   fit.fit();
   fit.observeResize();
 
-  const onSave = ({ savedAt }) =>
-    setStatus(`${ready} · saved ${new Date(savedAt).toLocaleTimeString([], { timeStyle: "short" })}`, "ready");
-
   const t0 = performance.now();
   vm
-    .boot({ term, problems, inputs, session: token, saveKey: "vm:exercise", setStatus, onSave })
+    .boot({ term, problems, inputs, session: token, saveKey: "vm:exercise", setStatus, onPersist })
     .then(({ restored }) => {
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
-      setStatus(ready, "ready");
+      if (persist.phase === "idle" && restored) persist = { phase: "saved", savedAt: restored };
+      if (vm.isSaving()) persist = { phase: "saving", savedAt: persist.savedAt };
+      else if (vm.isDirty()) persist = { phase: "dirty", savedAt: persist.savedAt };
+      showPersist();
       $("check").disabled = false;
       $("editor-save").disabled = $("editor-run").disabled = false;
       booted = true;

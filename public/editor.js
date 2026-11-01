@@ -326,6 +326,22 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
     return ok;
   }
 
+  // Flush every dirty buffer into the VM (used before leaving the page).
+  async function saveAll() {
+    const paths = [...files.keys()].filter(isDirty);
+    for (const path of paths) {
+      const text = path === current?.path ? view.state.doc.toString() : textOf(path);
+      const ok = await vm.writeFile(path, text);
+      if (!ok) {
+        report("save failed");
+        return false;
+      }
+      files.get(path).saved = text;
+    }
+    if (paths.length) report();
+    return true;
+  }
+
   // Save, then compile/run the file in the terminal (Ctrl-U first clears
   // whatever is typed at the prompt).
   async function run() {
@@ -364,6 +380,7 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
     keepConflict,
     reloadConflict,
     save,
+    saveAll,
     run,
     hasUnsaved,
     isDirtyPath,

@@ -268,6 +268,14 @@ await screenIncludesOn(playPage, "$", 120_000).catch(async (e) => {
   console.error(`play: no shell prompt\n--- terminal ---\n${await playPage.evaluate(screenText)}`);
   throw e;
 });
+await playPage.waitForFunction(() => {
+  const t = document.getElementById("status")?.textContent ?? "";
+  return /· (unsaved|saving…|saved )/.test(t);
+}, null, { timeout: 30_000 })
+  .then(
+    () => expect("play shows VM persist status", true),
+    async () => expect("play shows VM persist status", false, await playPage.locator("#status").innerText()),
+  );
 
 const homeNames = await playPage.evaluate(async () => {
   const entries = await window.ngoding.vm.listDir("/home/user");

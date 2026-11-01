@@ -11,6 +11,8 @@ import * as store from "./store.js";
 const LEGACY_SAVE_KEY = "snapshot";
 let saveKey = "vm:problems";
 const AUTOSAVE_MS = 60_000;
+// Snapshotting is expensive; debounce activity, flush on leave, and keep a slow backup.
+const DEBOUNCE_MS = 5_000;
 
 async function loadSaved(key) {
   let saved = await store.get(key);
@@ -32,7 +34,24 @@ let emulator;
 let image, session;
 let dirty = false;
 let saving = null;
+let debounceTimer = null;
+let lastSavedAt = null;
 let onSave = () => {};
+let onPersist = () => {};
+
+function markDirty() {
+  const wasClean = !dirty;
+  dirty = true;
+  if (wasClean) onPersist({ phase: "dirty", savedAt: lastSavedAt });
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    if (dirty) save();
+  }, DEBOUNCE_MS);
+}
+
+export const isDirty = () => dirty;
+export const isSaving = () => saving != null;
 
 // Request/response channel to /usr/local/sbin/ngoding-agent on the second
 // serial port (protocol documented in image/agent.sh).
@@ -80,7 +99,15 @@ export async function boot(ctx) {
   const { term, problems = [], inputs = {}, setStatus } = ctx;
   saveKey = ctx.saveKey;
   session = ctx.session;
-  onSave = ctx.onSave ?? onSave;
+  onSave = ctx.onSave ?? (() => {});
+  onPersist = ctx.onPersist ?? (() => {});
+  dirty = false;
+  saving = null;
+  lastSavedAt = null;
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
 
   ({ state: image } = await (await fetch("/v86/version.json", { cache: "no-cache" })).json());
   let saved = await loadSaved(saveKey);
@@ -124,7 +151,7 @@ export async function boot(ctx) {
     out.push(b);
   });
   term.onData((s) => {
-    dirty = true;
+    markDirty();
     emulator.serial_send_bytes(0, encoder.encode(s));
   });
   emulator.add_listener("serial1-output-byte", onAgentByte);
@@ -145,8 +172,13 @@ export async function boot(ctx) {
     }
   }
 
+  lastSavedAt = saved?.savedAt ?? null;
   setInterval(() => dirty && save(), AUTOSAVE_MS);
-  document.addEventListener("visibilitychange", () => document.hidden && dirty && save());
+  const flush = () => {
+    if (dirty || saving) save();
+  };
+  document.addEventListener("visibilitychange", () => document.hidden && flush());
+  addEventListener("pagehide", flush);
 
   // Redraw the prompt that was printed before the snapshot was taken.
   term.write("\x1b[2J\x1b[H");
@@ -157,15 +189,31 @@ export async function boot(ctx) {
 
 // Save the VM state to IndexedDB. Concurrent calls share one save.
 export function save() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
   saving ??= (async () => {
-    dirty = false;
-    const state = await emulator.save_state();
-    const blob = await gzip(state);
-    const savedAt = Date.now();
-    await store.put(saveKey, { image, session, savedAt, blob });
-    onSave({ savedAt, bytes: blob.size });
+    onPersist({ phase: "saving", savedAt: lastSavedAt });
+    try {
+      do {
+        dirty = false;
+        const state = await emulator.save_state();
+        const blob = await gzip(state);
+        const savedAt = Date.now();
+        await store.put(saveKey, { image, session, savedAt, blob });
+        lastSavedAt = savedAt;
+        onSave({ savedAt, bytes: blob.size });
+      } while (dirty);
+      onPersist({ phase: "saved", savedAt: lastSavedAt });
+    } catch (e) {
+      dirty = true;
+      onPersist({ phase: "error", savedAt: lastSavedAt, error: e });
+      throw e;
+    }
   })().finally(() => {
     saving = null;
+    if (dirty) save();
   });
   return saving;
 }
@@ -177,14 +225,14 @@ export async function readFile(path) {
 
 // Write a file as the student, e.g. from the editor. Resolves to true on success.
 export async function writeFile(path, text) {
-  dirty = true;
+  markDirty();
   const { status } = await agent("write", path, toBase64(encoder.encode(text)));
   return status === 0;
 }
 
 // Send keystrokes to the student's shell, as if typed in the terminal.
 export function type(text) {
-  dirty = true;
+  markDirty();
   emulator.serial_send_bytes(0, encoder.encode(text));
 }
 
@@ -200,17 +248,17 @@ export async function listDir(path) {
 }
 
 export async function mkdir(path) {
-  dirty = true;
+  markDirty();
   return (await agent("mkdir", path)).status === 0;
 }
 
 export async function rm(path) {
-  dirty = true;
+  markDirty();
   return (await agent("rm", path)).status === 0;
 }
 
 export async function mv(from, to) {
-  dirty = true;
+  markDirty();
   return (await agent("mv", from, to)).status === 0;
 }
 

@@ -12,6 +12,7 @@ import {
   touchSession,
 } from "./play-sessions.js";
 import * as store from "./store.js";
+import { formatPersistStatus, persistPillClass } from "./vm-persist.js";
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEY = "ngoding.play.build";
@@ -394,7 +395,45 @@ export async function startPlay(vm) {
     if (layoutMenuOpen && !e.target.closest(".layout-picker")) closeLayoutMenu();
   });
 
-  addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());
+  let persist = { phase: "idle", savedAt: null };
+
+  function showPersist() {
+    if (!ready) return;
+    setStatus(formatPersistStatus({ ready, ...persist }), persistPillClass(persist.phase));
+  }
+
+  function onPersist(p) {
+    persist = { phase: p.phase, savedAt: p.savedAt ?? persist.savedAt };
+    if (p.phase === "saved" && p.savedAt) touchSession(sessionId, p.savedAt);
+    showPersist();
+  }
+
+  async function flushBeforeLeave() {
+    if (editor.hasUnsaved() && !(await editor.saveAll())) {
+      throw new Error("editor save failed");
+    }
+    if (vm.isDirty() || vm.isSaving()) await vm.save();
+  }
+
+  addEventListener("beforeunload", (e) => {
+    if (editor.hasUnsaved() || vm.isDirty() || vm.isSaving()) e.preventDefault();
+  });
+
+  for (const a of document.querySelectorAll('a[href="/"]')) {
+    a.addEventListener("click", (e) => {
+      if (!booted) return;
+      if (!editor.hasUnsaved() && !vm.isDirty() && !vm.isSaving()) return;
+      e.preventDefault();
+      flushBeforeLeave()
+        .then(() => {
+          location.href = a.href;
+        })
+        .catch((err) => {
+          console.error(err);
+          setStatus("could not save session", "error");
+        });
+    });
+  }
 
   setEditorShare(editorShare);
   setLayout(layout);
@@ -412,9 +451,6 @@ export async function startPlay(vm) {
   fit.fit();
   fit.observeResize();
 
-  const onSave = ({ savedAt }) =>
-    setStatus(`${ready} · saved ${new Date(savedAt).toLocaleTimeString([], { timeStyle: "short" })}`, "ready");
-
   const t0 = performance.now();
   vm
     .boot({
@@ -424,7 +460,7 @@ export async function startPlay(vm) {
       session: sessionId,
       saveKey: playSaveKey(sessionId),
       setStatus,
-      onSave,
+      onPersist,
     })
     .then(async ({ restored }) => {
       await prepareWorkspace();
@@ -433,7 +469,11 @@ export async function startPlay(vm) {
         await seedTemplate(session.template);
       }
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
-      setStatus(ready, "ready");
+      // onPersist may already have run during prepareWorkspace; only seed if silent.
+      if (persist.phase === "idle" && restored) persist = { phase: "saved", savedAt: restored };
+      if (vm.isSaving()) persist = { phase: "saving", savedAt: persist.savedAt };
+      else if (vm.isDirty()) persist = { phase: "dirty", savedAt: persist.savedAt };
+      showPersist();
       booted = true;
       for (const id of ["editor-save", "editor-run", "build-cmd", "tree-new-file", "tree-new-folder", "tree-rename", "tree-delete"]) {
         $(id).disabled = false;

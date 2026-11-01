@@ -99,7 +99,7 @@ h1 {
   background: #ffffff08;
   font: normal 10px/1 "IBM Plex Mono", ui-monospace, monospace;
   color: var(--muted);
-  max-width: 11rem;
+  max-width: 16rem;
   overflow: hidden;
 }
 
@@ -118,6 +118,10 @@ h1 {
 }
 
 .status-pill.ready .status-dot { background: var(--accent); }
+.status-pill.unsaved {
+  color: var(--warn);
+}
+.status-pill.unsaved .status-dot { background: var(--warn); }
 .status-pill.error {
   color: var(--bad);
 }
