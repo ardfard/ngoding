@@ -936,6 +936,37 @@ body.play {
   min-height: 34px;
 }
 
+.editor-conflict {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: #2a2210;
+  border-bottom: 1px solid var(--warn);
+  color: var(--warn);
+  font-size: 12px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.editor-conflict[hidden] { display: none; }
+
+.editor-conflict button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.editor-conflict button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .editor-tab {
   display: flex;
   align-items: center;

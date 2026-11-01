@@ -2,6 +2,7 @@ import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
 import { findBuild, resolveBuild } from "./build-cmd.js";
 import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
+import { createFsSync } from "./fs-sync.js";
 import { languageFromPath, playgroundTemplate } from "./languages.js";
 import {
   LEGACY_PLAY_SAVE_KEY,
@@ -100,12 +101,16 @@ export async function startPlay(vm) {
     vm,
     vim: vimOn,
     onDocChange: () => renderTabs(),
+    onConflictChange: () => renderConflict(),
     onStatus: (text, cls) => {
       $("editor-status").textContent = text;
       $("editor-status").className = cls;
       renderTabs();
     },
   });
+
+  /** Set after createFsSync so tree refreshes can realign dir signatures. */
+  let fsSync = null;
 
   const tree = createFileTree({
     root: WORKSPACE,
@@ -115,11 +120,46 @@ export async function startPlay(vm) {
       const ok = await editor.openPath(path);
       if (!ok) editor.closePath(path);
       renderTabs();
+      renderConflict();
       await updateBuild();
     },
     onStatus: (msg) => setStatus(msg, "error"),
     onPathRemoved: (path) => editor.closePath(path),
+    onRefresh: () => fsSync?.alignDirs(),
   });
+
+  fsSync = createFsSync({
+    intervalMs: 1000,
+    listDir: (path) => vm.listDir(path),
+    readFile: (path) => vm.readFile(path),
+    getWatchedDirs: () => tree.getExpandedPaths(),
+    getOpenFiles: () => editor.getOpenFileStates(),
+    shouldRefreshTree: () => !tree.isEditing(),
+    onTreeChange: () => {
+      tree.refresh();
+    },
+    onFileEvent: (ev) => {
+      editor.handleDiskEvent(ev);
+      renderTabs();
+      renderConflict();
+      if (ev.kind === "deleted") updateBuild();
+    },
+  });
+
+  function renderConflict() {
+    const banner = $("editor-conflict");
+    const conflict = editor.getConflict();
+    if (!conflict) {
+      banner.hidden = true;
+      return;
+    }
+    const name = conflict.path.slice(conflict.path.lastIndexOf("/") + 1);
+    $("editor-conflict-msg").textContent = conflict.disk == null
+      ? `${name} was deleted on disk.`
+      : `${name} changed on disk.`
+    ;
+    banner.hidden = false;
+  }
 
   function renderTabs() {
     const tabs = $("editor-tabs");
@@ -321,6 +361,17 @@ export async function startPlay(vm) {
   $("tree-new-folder").onclick = () => tree.newFolder();
   $("tree-rename").onclick = () => tree.rename();
   $("tree-delete").onclick = () => tree.remove();
+  $("conflict-keep").onclick = () => {
+    editor.keepConflict();
+    renderConflict();
+    renderTabs();
+  };
+  $("conflict-reload").onclick = () => {
+    editor.reloadConflict();
+    renderConflict();
+    renderTabs();
+    updateBuild();
+  };
   $("sidebar-toggle").onclick = () =>
     setSidebarOpen(!document.body.classList.contains("sidebar-open"));
   $("sidebar-backdrop")?.addEventListener("click", () => setSidebarOpen(false));
@@ -389,6 +440,7 @@ export async function startPlay(vm) {
       }
       await tree.refresh();
       await updateBuild();
+      fsSync.start();
       term.focus();
     })
     .catch((e) => {
@@ -397,5 +449,5 @@ export async function startPlay(vm) {
       term.write(`\n\x1b[31mBoot failed: ${e.message ?? e}\x1b[0m\n`);
     });
 
-  window.ngoding = { vm, term, editor, tree };
+  window.ngoding = { vm, term, editor, tree, fsSync };
 }

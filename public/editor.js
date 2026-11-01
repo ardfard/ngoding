@@ -77,13 +77,15 @@ function modeFor(lang) {
   }
 }
 
-// ctx: { parent, vm, onStatus(text, cls), vim, language }. Call open(problem) to
+// ctx: { parent, vm, onStatus(text, cls), onConflictChange, vim, language }. Call open(problem) to
 // show a problem's file; until then (and while the VM boots) the editor is read-only.
-export function createEditor({ parent, vm, onStatus, onDocChange, vim: vimOn = false, language: languageId = "python" }) {
+export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChange, vim: vimOn = false, language: languageId = "python" }) {
   // path -> { state, saved, template }: one buffer per file, so switching
   // problems or languages keeps unsaved edits. saved is the text in the VM, or
   // null if the file doesn't exist yet.
   const files = new Map();
+  /** @type {Map<string, { disk: string|null }>} */
+  const conflicts = new Map();
   let current = null; // { path, problem }
   let opening = 0;
   let lang = languageById(languageId);
@@ -208,6 +210,7 @@ export function createEditor({ parent, vm, onStatus, onDocChange, vim: vimOn = f
     if (!files.has(path)) return;
     const wasCurrent = current?.path === path;
     files.delete(path);
+    if (conflicts.delete(path)) onConflictChange?.();
     if (!wasCurrent) return;
     const remaining = [...files.keys()];
     if (remaining.length === 0) {
@@ -227,8 +230,89 @@ export function createEditor({ parent, vm, onStatus, onDocChange, vim: vimOn = f
     return [...files.keys()];
   }
 
+  function getOpenFileStates() {
+    return [...files.keys()].map((path) => ({
+      path,
+      saved: files.get(path).saved,
+      dirty: isDirty(path),
+    }));
+  }
+
   function currentPath() {
     return current?.path ?? null;
+  }
+
+  function getConflict(path = current?.path) {
+    if (!path || !conflicts.has(path)) return null;
+    return { path, disk: conflicts.get(path).disk };
+  }
+
+  function applyDiskText(path, disk) {
+    const f = files.get(path);
+    if (!f) return;
+    const language = f.language ?? lang;
+    const state = makeState(disk, false, language);
+    files.set(path, {
+      ...f,
+      state,
+      saved: disk,
+      template: disk,
+    });
+    if (current?.path === path) view.setState(state);
+    conflicts.delete(path);
+    report();
+    onConflictChange?.();
+    onDocChange?.();
+  }
+
+  function handleDiskEvent({ path, kind, disk }) {
+    if (!files.has(path)) return;
+    if (kind === "deleted") {
+      closePath(path);
+      conflicts.delete(path);
+      onConflictChange?.();
+      return;
+    }
+    if (kind === "reload") {
+      if (disk == null) {
+        closePath(path);
+        return;
+      }
+      applyDiskText(path, disk);
+      return;
+    }
+    if (kind === "conflict") {
+      conflicts.set(path, { disk });
+      onConflictChange?.();
+    }
+  }
+
+  function keepConflict(path = current?.path) {
+    if (!path || !conflicts.has(path)) return;
+    const { disk } = conflicts.get(path);
+    const f = files.get(path);
+    if (!f) return;
+    if (disk == null) {
+      f.saved = null;
+      f.template = "";
+    } else {
+      f.saved = disk;
+    }
+    conflicts.delete(path);
+    report();
+    onConflictChange?.();
+  }
+
+  function reloadConflict(path = current?.path) {
+    if (!path || !conflicts.has(path)) return;
+    const { disk } = conflicts.get(path);
+    if (disk == null) {
+      conflicts.delete(path);
+      closePath(path);
+      onConflictChange?.();
+      return;
+    }
+    applyDiskText(path, disk);
   }
 
   async function save() {
@@ -273,7 +357,12 @@ export function createEditor({ parent, vm, onStatus, onDocChange, vim: vimOn = f
     openPath,
     closePath,
     getOpenPaths,
+    getOpenFileStates,
     currentPath,
+    getConflict,
+    handleDiskEvent,
+    keepConflict,
+    reloadConflict,
     save,
     run,
     hasUnsaved,

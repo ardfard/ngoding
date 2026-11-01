@@ -21,7 +21,7 @@ function sortEntries(entries) {
   });
 }
 
-export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemoved }) {
+export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemoved, onRefresh }) {
   const expanded = new Set([root]);
   /** @type {{ path: string, type: "dir"|"file" } | null} */
   let selected = { path: root, type: "dir" };
@@ -117,6 +117,7 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
 
   async function refresh() {
     await render();
+    await onRefresh?.();
   }
 
   function targetParent() {
@@ -308,5 +309,13 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
     await refresh();
   }
 
-  return { refresh, newFile, newFolder, rename, remove };
+  function getExpandedPaths() {
+    return [...expanded];
+  }
+
+  function isEditing() {
+    return cancelNameEdit != null;
+  }
+
+  return { refresh, newFile, newFolder, rename, remove, getExpandedPaths, isEditing };
 }

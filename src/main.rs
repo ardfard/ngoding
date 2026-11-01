@@ -52,6 +52,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/play.js" => "public/play.js",
     "/play-ui.js" => "public/play-ui.js",
     "/file-tree.js" => "public/file-tree.js",
+    "/fs-sync.js" => "public/fs-sync.js",
     "/build-cmd.js" => "public/build-cmd.js",
     "/exercise" => "public/exercise.html",
     "/exercise.js" => "public/exercise.js",

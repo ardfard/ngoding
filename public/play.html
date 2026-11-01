@@ -104,6 +104,11 @@
         </div>
       </div>
       <div id="editor-tabs"></div>
+      <div id="editor-conflict" class="editor-conflict" hidden role="alert">
+        <span id="editor-conflict-msg">This file changed on disk.</span>
+        <button type="button" id="conflict-keep">Keep buffer</button>
+        <button type="button" id="conflict-reload">Reload from disk</button>
+      </div>
       <section id="editor"></section>
       <div id="split" role="separator" aria-orientation="horizontal" aria-label="Resize editor and shell" tabindex="0"></div>
       <main id="terminal"></main>

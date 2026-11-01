@@ -298,13 +298,31 @@ expect(
 await playPage.evaluate(async () => {
   await window.ngoding.vm.rm("/home/user/workspace/from-ui.py");
   window.ngoding.editor.closePath("/home/user/workspace/from-ui.py");
-  await window.ngoding.tree.refresh();
 });
+await playPage.waitForFunction(
+  () => !document.querySelector('[data-path="/home/user/workspace/from-ui.py"]'),
+  null,
+  { timeout: 10_000 },
+).then(() => expect("play sync removes deleted file from tree", true), () => expect("play sync removes deleted file from tree", false));
+
+// Shell mkdir should appear in the explorer without a manual refresh.
+await playPage.evaluate(() => window.ngoding.vm.type("mkdir /home/user/workspace/fromshell && echo MKDIR_OK\n"));
+await screenIncludesOn(playPage, "MKDIR_OK", 30_000)
+  .then(() => expect("play shell mkdir ran", true), () => expect("play shell mkdir ran", false));
+await playPage.waitForFunction(
+  () => !!document.querySelector('[data-path="/home/user/workspace/fromshell"]'),
+  null,
+  { timeout: 10_000 },
+).then(() => expect("play sync shows shell mkdir in tree", true), () => expect("play sync shows shell mkdir in tree", false));
 
 await playPage.evaluate(async () => {
   await window.ngoding.vm.writeFile("/home/user/workspace/hello.py", "print(42)\n");
 });
-await playPage.evaluate(() => window.ngoding.tree.refresh());
+await playPage.waitForFunction(
+  () => !!document.querySelector('[data-path="/home/user/workspace/hello.py"]'),
+  null,
+  { timeout: 10_000 },
+).then(() => expect("play sync shows new file in tree", true), () => expect("play sync shows new file in tree", false));
 await playPage.evaluate(() => window.ngoding.editor.openPath("/home/user/workspace/hello.py"));
 await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/workspace/hello.py");
 await playPage.evaluate(async () => {
@@ -312,11 +330,63 @@ await playPage.evaluate(async () => {
 });
 expect("play opens hello.py", (await playPage.evaluate(() => window.ngoding.editor.currentPath())) === "/home/user/workspace/hello.py");
 
+// External write to a clean open buffer reloads the editor.
+await playPage.evaluate(async () => {
+  await window.ngoding.vm.writeFile("/home/user/workspace/hello.py", "print('synced')\n");
+});
+await playPage.waitForFunction(
+  () => window.ngoding.editor.view.state.doc.toString() === "print('synced')\n",
+  null,
+  { timeout: 10_000 },
+).then(() => expect("play sync reloads clean editor from disk", true), () => expect("play sync reloads clean editor from disk", false));
+
+// Dirty buffer + disk change → conflict banner; Keep preserves buffer.
+await playPage.evaluate(() => {
+  const view = window.ngoding.editor.view;
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "print('local')\n" } });
+});
+await playPage.evaluate(async () => {
+  await window.ngoding.vm.writeFile("/home/user/workspace/hello.py", "print('disk')\n");
+});
+await playPage.waitForFunction(
+  () => !document.getElementById("editor-conflict").hidden,
+  null,
+  { timeout: 10_000 },
+).then(() => expect("play sync shows conflict banner", true), () => expect("play sync shows conflict banner", false));
+await playPage.getByRole("button", { name: "Keep buffer" }).click();
+expect(
+  "play conflict keep preserves buffer",
+  (await playPage.evaluate(() => window.ngoding.editor.view.state.doc.toString())) === "print('local')\n",
+);
+expect(
+  "play conflict keep hides banner",
+  await playPage.evaluate(() => document.getElementById("editor-conflict").hidden),
+);
+
+// Reload choice takes disk contents.
+await playPage.evaluate(() => {
+  const view = window.ngoding.editor.view;
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "print('local2')\n" } });
+});
+await playPage.evaluate(async () => {
+  await window.ngoding.vm.writeFile("/home/user/workspace/hello.py", "print('disk2')\n");
+});
+await playPage.waitForFunction(() => !document.getElementById("editor-conflict").hidden, null, { timeout: 10_000 });
+await playPage.getByRole("button", { name: "Reload from disk" }).click();
+expect(
+  "play conflict reload takes disk",
+  (await playPage.evaluate(() => window.ngoding.editor.view.state.doc.toString())) === "print('disk2')\n",
+);
+
 await playPage.evaluate(async () => {
   await window.ngoding.vm.mv("/home/user/workspace/hello.py", "/home/user/workspace/hi.py");
   window.ngoding.editor.closePath("/home/user/workspace/hello.py");
-  await window.ngoding.tree.refresh();
 });
+await playPage.waitForFunction(
+  () => !!document.querySelector('[data-path="/home/user/workspace/hi.py"]'),
+  null,
+  { timeout: 10_000 },
+);
 await playPage.evaluate(() => window.ngoding.editor.openPath("/home/user/workspace/hi.py"));
 await playPage.evaluate(async () => {
   await window.ngoding.vm.rm("/home/user/workspace/hi.py");
@@ -336,10 +406,18 @@ await playPage.evaluate(async () => {
   await window.ngoding.vm.writeFile("/home/user/workspace/go.mod", "module play\n\ngo 1.22\n");
   await window.ngoding.vm.writeFile("/home/user/workspace/main.go", "package main\n\nfunc main() {}\n");
 });
-await playPage.evaluate(() => window.ngoding.tree.refresh());
+await playPage.waitForFunction(
+  () => !!document.querySelector('[data-path="/home/user/workspace/main.go"]'),
+  null,
+  { timeout: 10_000 },
+);
 await playPage.getByRole("button", { name: "main.go" }).click();
 await playPage.waitForFunction(() => window.ngoding.editor.currentPath() === "/home/user/workspace/main.go");
-await playPage.waitForFunction(() => !document.getElementById("build-btn").disabled, null, { timeout: 30_000 });
+await playPage.waitForFunction(
+  () => (document.getElementById("build-cmd")?.value ?? "").includes("go build"),
+  null,
+  { timeout: 30_000 },
+);
 await playPage.locator("#build-cmd").fill("");
 await playPage.getByRole("button", { name: /^Build/ }).click();
 await playPage.waitForFunction(() => {
