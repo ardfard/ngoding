@@ -2,21 +2,67 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ngoding — Linux sandbox exercises</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/problems.js"></script>
   </head>
   <body>
-    <aside>
-      <header>
-        <h1>ngoding</h1>
-        <a href="/play">Play</a>
-        <span id="status" class="status">loading…</span>
+    <div id="sidebar-backdrop" hidden></div>
+    <aside id="sidebar">
+      <header class="chrome-header">
+        <div class="chrome-brand-row">
+          <div class="brand">
+            <h1>ngoding</h1>
+            <span class="brand-caret" aria-hidden="true"></span>
+          </div>
+          <div class="chrome-status-actions">
+            <span class="status status-pill">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="status">loading…</span>
+            </span>
+          </div>
+        </div>
+        <nav class="mode-segment" aria-label="Mode">
+          <a class="mode-seg" href="/play" title="Open the Play sandbox">
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+            PLAY
+          </a>
+          <a class="mode-seg active" href="/problems" aria-current="page">
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            PROBLEMS
+          </a>
+        </nav>
       </header>
-      <nav id="tabs"></nav>
+      <div class="problem-picker">
+        <div class="picker-meta">
+          <span class="picker-label">PROBLEM</span>
+          <span id="picker-count" class="picker-count"></span>
+        </div>
+        <button type="button" id="problem-select" aria-haspopup="listbox" aria-expanded="false">
+          <span id="problem-select-num" class="problem-num">01</span>
+          <span id="problem-select-title" class="problem-select-title">…</span>
+          <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>
+        </button>
+        <div id="problem-menu" class="problem-menu" hidden>
+          <label class="problem-search">
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+            <input id="problem-filter" type="search" placeholder="Search problems…" autocomplete="off" />
+            <kbd>esc</kbd>
+          </label>
+          <div id="tabs" class="problem-results" role="listbox" aria-label="Problems"></div>
+          <div class="problem-menu-footer">
+            <span>↑ ↓ to move · ↵ to open</span>
+            <span id="picker-total"></span>
+          </div>
+        </div>
+      </div>
       <article id="problem"></article>
       <footer>
-        <button id="check" disabled>Check my output</button>
+        <button id="check" disabled>
+          <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M18 6L7 17l-5-5M22 10l-10.5 10.5L8 16"/></svg>
+          Check my output
+        </button>
         <div id="result" role="status"></div>
         <details>
           <summary>Sandbox</summary>
@@ -34,16 +80,54 @@
         </p>
       </footer>
     </aside>
-    <div id="workspace" class="layout-split" style="--editor-share: 0.6">
+    <div id="workspace" class="layout-vertical" style="--editor-share: 0.6">
       <div id="toolbar">
-        <button id="layout-toggle" title="Cycle layout: split, editor only, shell only">Split</button>
-        <label class="editor-only" id="lang-label">Language
-          <select id="editor-lang" title="Language for all problems"></select>
-        </label>
-        <span id="editor-status"></span>
-        <button id="vim-toggle" class="editor-only" aria-pressed="false" title="Vim keybindings (:w saves)">Vim</button>
-        <button id="editor-save" class="editor-only" title="Save (Ctrl-S)" disabled>Save</button>
-        <button id="editor-run" class="editor-only" title="Save, compile if needed, and run in the terminal (Ctrl-Enter)" disabled>Run ▸</button>
+        <button type="button" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">Problem</button>
+        <div class="toolbar-left">
+          <button type="button" id="editor-save" class="editor-only" title="Save (Ctrl-S)" disabled>
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M17 21v-8H7v8M7 3v5h8"/></svg>
+            Save
+          </button>
+          <button type="button" id="editor-run" class="editor-only btn-primary" title="Save, compile if needed, and run in the terminal (Ctrl-Enter)" disabled>
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon fill="currentColor" points="6 3 20 12 6 21 6 3"/></svg>
+            Run
+          </button>
+          <label class="editor-only lang-select" id="lang-label">
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M10 13H8M16 13h-2M10 17H8M14 17h-2"/></svg>
+            <select id="editor-lang" title="Language for all problems" aria-label="Language"></select>
+          </label>
+          <span id="editor-status"></span>
+        </div>
+        <div class="toolbar-right">
+          <button type="button" id="vim-toggle" class="editor-only" aria-pressed="false" title="Vim keybindings (:w saves)">
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 17l6-6-6-6M12 19h8"/></svg>
+            Vim
+            <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
+          </button>
+          <div class="layout-picker">
+            <button type="button" id="layout-toggle" aria-haspopup="menu" aria-expanded="false" title="Layout: Vertical — editor above shell" aria-label="Layout">
+              <svg class="tb-icon layout-icon" data-layout-icon="vertical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></svg>
+            </button>
+            <div id="layout-menu" role="menu" hidden>
+              <button type="button" role="menuitemradio" data-layout="vertical" title="Editor above shell">
+                <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></svg>
+                Vertical
+              </button>
+              <button type="button" role="menuitemradio" data-layout="horizontal" title="Editor beside shell">
+                <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></svg>
+                Horizontal
+              </button>
+              <button type="button" role="menuitemradio" data-layout="editor" title="Hide the shell">
+                <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                Editor only
+              </button>
+              <button type="button" role="menuitemradio" data-layout="shell" title="Hide the editor">
+                <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/></svg>
+                Shell only
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
       <section id="editor" class="editor-only"></section>
       <div id="split" class="editor-only" role="separator" aria-orientation="horizontal" aria-label="Resize editor and shell" tabindex="0"></div>

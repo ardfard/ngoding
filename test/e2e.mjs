@@ -59,8 +59,16 @@ async function sh(cmd, timeout = 180_000) {
     throw e;
   });
 }
+async function selectProblem(tab, p = page) {
+  await p.locator("#problem-select").click();
+  await p.getByRole("option", { name: tab }).click();
+}
+async function setLayoutMode(mode, p = page) {
+  await p.locator("#layout-toggle").click();
+  await p.getByRole("menuitemradio", { name: mode }).click();
+}
 async function check(tab) {
-  await page.getByRole("button", { name: tab }).click();
+  await selectProblem(tab);
   await page.getByRole("button", { name: "Check my output" }).click();
   await page.waitForFunction(() => /^[✓✗]/.test(document.getElementById("result").textContent), null, { timeout: 60_000 });
   return page.locator("#result").innerText();
@@ -122,7 +130,7 @@ await sh("echo after-interrupt", 30_000).then(
 );
 
 // The editor shows the current problem's file, which the terminal just wrote.
-await page.getByRole("button", { name: "Prime sums" }).click();
+await selectProblem("Prime sums");
 await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
 expect("editor loads the file from the VM", (await editorText()) === readFileSync("test/solutions/prime_sums.py", "utf8"));
 
@@ -169,11 +177,11 @@ await sh("head -1 ~/prime_sums.py");
 expect("vim mode edits and saves with :w", (await editorText()).startsWith("# vim-edit\n") && (await screen()).includes("\n# vim-edit"),
   (await editorText()).split("\n")[0]);
 
-// Layout cycles Split → Editor → Shell; Shell hides the editor and is remembered.
-await page.getByRole("button", { name: "Split" }).click();
+// Layout picker: Editor only / Shell only; Shell hides the editor and is remembered.
+await setLayoutMode("Editor only");
 expect("editor-only layout hides the terminal", !(await page.locator("#terminal").isVisible()) &&
   await page.locator("#editor").isVisible());
-await page.getByRole("button", { name: "Editor" }).click();
+await setLayoutMode("Shell only");
 expect("shell-only layout hides the editor", !(await page.locator("#editor").isVisible()) &&
   !(await page.locator("#editor-run").isVisible()));
 
@@ -202,8 +210,8 @@ r = await check("Word frequency");
 expect("grading still works after restore", r.startsWith("✓"), r);
 
 expect("shell layout stays after reload", !(await page.locator("#editor").isVisible()));
-await page.getByRole("button", { name: "Prime sums" }).click();
-await page.getByRole("button", { name: "Shell" }).click(); // Shell → Split
+await selectProblem("Prime sums");
+await setLayoutMode("Vertical");
 await page.waitForFunction(() => document.getElementById("editor-status").textContent.endsWith("· saved"));
 expect("vim mode stays on after reload", await page.locator(".cm-vim-panel").isVisible());
 await page.getByRole("button", { name: "Vim" }).click();

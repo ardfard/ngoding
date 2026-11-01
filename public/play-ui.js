@@ -7,6 +7,21 @@ import { languageFromPath } from "./languages.js";
 const $ = (id) => document.getElementById(id);
 const BUILD_KEY = "ngoding.play.build";
 
+const LAYOUTS = ["vertical", "horizontal", "editor", "shell"];
+const LAYOUT_TITLE = {
+  vertical: "Layout: Vertical — editor above shell",
+  horizontal: "Layout: Horizontal — editor beside shell",
+  editor: "Layout: Editor only — hide the shell",
+  shell: "Layout: Shell only — hide the editor",
+};
+/* Lucide rows-2 / columns-2 / square / square-terminal — matches design/main.pen */
+const LAYOUT_ICON = {
+  vertical: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></svg>`,
+  horizontal: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></svg>`,
+  editor: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
+  shell: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/></svg>`,
+};
+
 /** Single-quoted path for POSIX shell `cd`. */
 function shellQuote(path) {
   return `'${path.replace(/'/g, `'\\''`)}'`;
@@ -22,7 +37,15 @@ export async function startPlay(vm) {
 
   function setStatus(text, cls = "") {
     $("status").textContent = text;
-    $("status").className = `status ${cls}`;
+    $("status").parentElement.className = `status status-pill ${cls}`;
+  }
+
+  function setSidebarOpen(open) {
+    document.body.classList.toggle("sidebar-open", open);
+    const btn = $("sidebar-toggle");
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+    const backdrop = $("sidebar-backdrop");
+    if (backdrop) backdrop.hidden = !open;
   }
 
   function buildOverrideForResolve() {
@@ -40,7 +63,11 @@ export async function startPlay(vm) {
 
   function applyBuildControls() {
     const resolved = resolveBuild({ override: buildOverrideForResolve(), detected: detectedBuild });
-    $("build-btn").disabled = !booted || resolved.source === "none";
+    // Keep Build visible like Save once the VM is up; empty command is a no-op on click.
+    $("build-btn").disabled = !booted;
+    $("build-btn").title = resolved.source === "none"
+      ? "Set a build command to run in the terminal"
+      : "Run build in terminal";
   }
 
   let vimOn = localStorage.getItem("ngoding.vim") === "on";
@@ -141,8 +168,33 @@ export async function startPlay(vm) {
     location.reload();
   }
 
+  let layout = localStorage.getItem("ngoding.layout");
+  if (layout === "split") layout = "vertical";
+  if (!LAYOUTS.includes(layout)) layout = "vertical";
   let editorShare = Number(localStorage.getItem("ngoding.split"));
   if (!(editorShare > 0.15 && editorShare < 0.85)) editorShare = 0.6;
+  let layoutMenuOpen = false;
+
+  function closeLayoutMenu() {
+    layoutMenuOpen = false;
+    $("layout-menu").hidden = true;
+    $("layout-toggle").setAttribute("aria-expanded", "false");
+  }
+
+  function setLayout(mode) {
+    layout = mode;
+    localStorage.setItem("ngoding.layout", mode);
+    const ws = $("workspace");
+    ws.classList.remove(...LAYOUTS.map((m) => `layout-${m}`), "layout-split");
+    ws.classList.add(`layout-${mode}`);
+    $("layout-toggle").innerHTML = LAYOUT_ICON[mode];
+    $("layout-toggle").title = LAYOUT_TITLE[mode];
+    for (const btn of $("layout-menu").querySelectorAll("[data-layout]")) {
+      btn.setAttribute("aria-checked", btn.dataset.layout === mode);
+    }
+    $("split").setAttribute("aria-orientation", mode === "horizontal" ? "vertical" : "horizontal");
+    closeLayoutMenu();
+  }
 
   function setEditorShare(share) {
     editorShare = Math.min(0.85, Math.max(0.15, share));
@@ -154,6 +206,7 @@ export async function startPlay(vm) {
     let dragging = false;
     split.onpointerdown = (e) => {
       dragging = true;
+      split.classList.add("dragging");
       split.setPointerCapture(e.pointerId);
       e.preventDefault();
     };
@@ -161,12 +214,18 @@ export async function startPlay(vm) {
       if (!dragging) return;
       const ws = $("workspace").getBoundingClientRect();
       const toolH = $("toolbar").offsetHeight + $("editor-tabs").offsetHeight;
-      const avail = ws.height - toolH - split.offsetHeight;
-      if (avail > 0) setEditorShare((e.clientY - ws.top - toolH) / avail);
+      if (layout === "horizontal") {
+        const avail = ws.width - split.offsetWidth;
+        if (avail > 0) setEditorShare((e.clientX - ws.left) / avail);
+      } else {
+        const avail = ws.height - toolH - split.offsetHeight;
+        if (avail > 0) setEditorShare((e.clientY - ws.top - toolH) / avail);
+      }
     };
     const endDrag = () => {
       if (!dragging) return;
       dragging = false;
+      split.classList.remove("dragging");
       localStorage.setItem("ngoding.split", String(editorShare));
     };
     split.onpointerup = endDrag;
@@ -199,10 +258,32 @@ export async function startPlay(vm) {
   $("tree-new-folder").onclick = () => tree.newFolder();
   $("tree-rename").onclick = () => tree.rename();
   $("tree-delete").onclick = () => tree.remove();
+  $("sidebar-toggle").onclick = () =>
+    setSidebarOpen(!document.body.classList.contains("sidebar-open"));
+  $("sidebar-backdrop")?.addEventListener("click", () => setSidebarOpen(false));
+  $("layout-toggle").onclick = (e) => {
+    e.stopPropagation();
+    layoutMenuOpen = !layoutMenuOpen;
+    $("layout-menu").hidden = !layoutMenuOpen;
+    $("layout-toggle").setAttribute("aria-expanded", layoutMenuOpen ? "true" : "false");
+  };
+  for (const btn of $("layout-menu").querySelectorAll("[data-layout]")) {
+    btn.onclick = () => setLayout(btn.dataset.layout);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      setSidebarOpen(false);
+      closeLayoutMenu();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (layoutMenuOpen && !e.target.closest(".layout-picker")) closeLayoutMenu();
+  });
 
   addEventListener("beforeunload", (e) => editor.hasUnsaved() && e.preventDefault());
 
   setEditorShare(editorShare);
+  setLayout(layout);
 
   await init();
   const term = new Terminal({

@@ -1,4 +1,4 @@
-// Exercise UI: problem tabs, terminal, grading.
+// Exercise UI: problem picker, terminal, grading.
 //
 // The VM module provides { async boot(ctx), async readFile(path), async writeFile(path, text),
 // type(text), save(), async reset() }:
@@ -18,6 +18,21 @@ import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./langu
 
 const $ = (id) => document.getElementById(id);
 
+const LAYOUTS = ["vertical", "horizontal", "editor", "shell"];
+const LAYOUT_TITLE = {
+  vertical: "Layout: Vertical — editor above shell",
+  horizontal: "Layout: Horizontal — editor beside shell",
+  editor: "Layout: Editor only — hide the shell",
+  shell: "Layout: Shell only — hide the editor",
+};
+/* Lucide rows-2 / columns-2 / square / square-terminal — matches design/main.pen */
+const LAYOUT_ICON = {
+  vertical: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></svg>`,
+  horizontal: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></svg>`,
+  editor: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
+  shell: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/></svg>`,
+};
+
 async function post(url, body) {
   const res = await fetch(url, {
     method: "POST",
@@ -27,6 +42,10 @@ async function post(url, body) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? res.statusText);
   return data;
+}
+
+function padNum(i) {
+  return String(i + 1).padStart(2, "0");
 }
 
 export async function startApp(vm) {
@@ -41,29 +60,77 @@ export async function startApp(vm) {
   let current = problems[0];
   let ready = "";
   let booted = false;
+  let problemFilter = "";
+  let menuOpen = false;
 
   function setStatus(text, cls = "") {
     $("status").textContent = text;
-    $("status").className = `status ${cls}`;
+    $("status").parentElement.className = `status status-pill ${cls}`;
   }
 
-  function renderProblem() {
+  function setSidebarOpen(open) {
+    document.body.classList.toggle("sidebar-open", open);
+    const btn = $("sidebar-toggle");
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+    const backdrop = $("sidebar-backdrop");
+    if (backdrop) backdrop.hidden = !open;
+  }
+
+  function closeProblemMenu() {
+    menuOpen = false;
+    $("problem-menu").hidden = true;
+    $("problem-select").setAttribute("aria-expanded", "false");
+    problemFilter = "";
+    $("problem-filter").value = "";
+  }
+
+  function openProblemMenu() {
+    menuOpen = true;
+    $("problem-menu").hidden = false;
+    $("problem-select").setAttribute("aria-expanded", "true");
+    renderProblemList();
+    $("problem-filter").focus();
+  }
+
+  function selectProblem(p) {
+    current = p;
+    $("result").textContent = "";
+    $("result").className = "";
+    closeProblemMenu();
+    renderProblem();
+    if (booted && layout !== "shell") editor.open(current);
+  }
+
+  function renderProblemList() {
+    const q = problemFilter.trim().toLowerCase();
+    const rows = problems
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => !q || p.title.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     $("tabs").replaceChildren(
-      ...problems.map((p) => {
+      ...rows.map(({ p, i }) => {
         const b = document.createElement("button");
-        b.textContent = p.title;
+        b.type = "button";
+        b.setAttribute("role", "option");
         b.setAttribute("aria-selected", p === current);
         b.classList.toggle("solved", solved.has(p.id));
-        b.onclick = () => {
-          current = p;
-          $("result").textContent = "";
-          renderProblem();
-          if (booted && layout !== "shell") editor.open(current);
-        };
+        b.innerHTML = `<span class="problem-num">${padNum(i)}</span><span class="problem-title">${p.title}</span>${
+          solved.has(p.id) ? '<span class="solved-mark" aria-label="solved">✓</span>' : ""
+        }`;
+        b.onclick = () => selectProblem(p);
         return b;
       }),
     );
+  }
+
+  function renderProblem() {
+    const idx = problems.indexOf(current);
+    $("problem-select-num").textContent = padNum(idx);
+    $("problem-select-title").textContent = current.title;
+    const nSolved = problems.filter((p) => solved.has(p.id)).length;
+    $("picker-count").textContent = `${nSolved} solved · ${problems.length} total`;
+    $("picker-total").textContent = `${problems.length} problems`;
     $("problem").innerHTML = `<h2>${current.title}</h2>${current.description}`;
+    if (menuOpen) renderProblemList();
   }
 
   async function check() {
@@ -100,9 +167,6 @@ export async function startApp(vm) {
     location.reload();
   }
 
-  // The editor works on the current problem's solution file. Layout cycles
-  // split / editor / shell; vim and language are remembered per browser.
-  // Language is global: every problem uses the same one.
   let vimOn = localStorage.getItem("ngoding.vim") === "on";
   let lang = languageById(localStorage.getItem(LANG_STORAGE_KEY) ?? DEFAULT_LANG);
   const langSelect = $("editor-lang");
@@ -126,24 +190,35 @@ export async function startApp(vm) {
     },
   });
 
-  const LAYOUTS = ["split", "editor", "shell"];
-  const LAYOUT_LABEL = { split: "Split", editor: "Editor", shell: "Shell" };
-  // Migrate the old editor on/off flag once.
   let layout = localStorage.getItem("ngoding.layout");
+  if (layout === "split") layout = "vertical";
   if (!LAYOUTS.includes(layout)) {
-    layout = localStorage.getItem("ngoding.editor") === "off" ? "shell" : "split";
+    layout = localStorage.getItem("ngoding.editor") === "off" ? "shell" : "vertical";
   }
   let editorShare = Number(localStorage.getItem("ngoding.split"));
   if (!(editorShare > 0.15 && editorShare < 0.85)) editorShare = 0.6;
+  let layoutMenuOpen = false;
+
+  function closeLayoutMenu() {
+    layoutMenuOpen = false;
+    $("layout-menu").hidden = true;
+    $("layout-toggle").setAttribute("aria-expanded", "false");
+  }
 
   function setLayout(mode) {
     layout = mode;
     localStorage.setItem("ngoding.layout", mode);
     localStorage.removeItem("ngoding.editor");
     const ws = $("workspace");
-    ws.classList.remove("layout-split", "layout-editor", "layout-shell");
+    ws.classList.remove(...LAYOUTS.map((m) => `layout-${m}`), "layout-split");
     ws.classList.add(`layout-${mode}`);
-    $("layout-toggle").textContent = LAYOUT_LABEL[mode];
+    $("layout-toggle").innerHTML = LAYOUT_ICON[mode];
+    $("layout-toggle").title = LAYOUT_TITLE[mode];
+    for (const btn of $("layout-menu").querySelectorAll("[data-layout]")) {
+      btn.setAttribute("aria-checked", btn.dataset.layout === mode);
+    }
+    $("split").setAttribute("aria-orientation", mode === "horizontal" ? "vertical" : "horizontal");
+    closeLayoutMenu();
     if (mode !== "shell" && booted) editor.open(current).then(editor.focus);
   }
 
@@ -155,13 +230,43 @@ export async function startApp(vm) {
   $("seed").textContent = seed;
   $("check").onclick = check;
   $("reset").onclick = reset;
-  $("layout-toggle").onclick = () =>
-    setLayout(LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length]);
+  $("problem-select").onclick = () => (menuOpen ? closeProblemMenu() : openProblemMenu());
+  $("problem-filter").oninput = () => {
+    problemFilter = $("problem-filter").value;
+    renderProblemList();
+  };
+  $("sidebar-toggle").onclick = () =>
+    setSidebarOpen(!document.body.classList.contains("sidebar-open"));
+  $("sidebar-backdrop")?.addEventListener("click", () => setSidebarOpen(false));
+
+  $("layout-toggle").onclick = (e) => {
+    e.stopPropagation();
+    layoutMenuOpen = !layoutMenuOpen;
+    $("layout-menu").hidden = !layoutMenuOpen;
+    $("layout-toggle").setAttribute("aria-expanded", layoutMenuOpen ? "true" : "false");
+  };
+  for (const btn of $("layout-menu").querySelectorAll("[data-layout]")) {
+    btn.onclick = () => setLayout(btn.dataset.layout);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      setSidebarOpen(false);
+      closeProblemMenu();
+      closeLayoutMenu();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (menuOpen && !e.target.closest(".problem-picker")) closeProblemMenu();
+    if (layoutMenuOpen && !e.target.closest(".layout-picker")) closeLayoutMenu();
+  });
+
   {
     const split = $("split");
     let dragging = false;
     split.onpointerdown = (e) => {
       dragging = true;
+      split.classList.add("dragging");
       split.setPointerCapture(e.pointerId);
       e.preventDefault();
     };
@@ -169,20 +274,27 @@ export async function startApp(vm) {
       if (!dragging) return;
       const ws = $("workspace").getBoundingClientRect();
       const toolH = $("toolbar").offsetHeight;
-      const avail = ws.height - toolH - split.offsetHeight;
-      if (avail > 0) setEditorShare((e.clientY - ws.top - toolH) / avail);
+      if (layout === "horizontal") {
+        const avail = ws.width - split.offsetWidth;
+        if (avail > 0) setEditorShare((e.clientX - ws.left) / avail);
+      } else {
+        const avail = ws.height - toolH - split.offsetHeight;
+        if (avail > 0) setEditorShare((e.clientY - ws.top - toolH) / avail);
+      }
     };
     const endDrag = () => {
       if (!dragging) return;
       dragging = false;
+      split.classList.remove("dragging");
       localStorage.setItem("ngoding.split", String(editorShare));
     };
     split.onpointerup = endDrag;
     split.onpointercancel = endDrag;
     split.onkeydown = (e) => {
       const step = e.shiftKey ? 0.1 : 0.05;
-      if (e.key === "ArrowUp") setEditorShare(editorShare - step);
-      else if (e.key === "ArrowDown") setEditorShare(editorShare + step);
+      const horizontal = layout === "horizontal";
+      if (e.key === (horizontal ? "ArrowLeft" : "ArrowUp")) setEditorShare(editorShare - step);
+      else if (e.key === (horizontal ? "ArrowRight" : "ArrowDown")) setEditorShare(editorShare + step);
       else return;
       e.preventDefault();
       localStorage.setItem("ngoding.split", String(editorShare));
@@ -220,7 +332,6 @@ export async function startApp(vm) {
   term.loadAddon(fit);
   term.open($("terminal"));
   fit.fit();
-  // Refit when the window or the editor split changes the terminal's size.
   fit.observeResize();
 
   const onSave = ({ savedAt }) =>
@@ -245,7 +356,5 @@ export async function startApp(vm) {
       term.write(`\n\x1b[31mBoot failed: ${e.message ?? e}\x1b[0m\n`);
     });
 
-  // Handy for debugging / automated tests. term.buffer is the only way to read
-  // the canvas-backed screen from Playwright.
   window.ngoding = { vm, check, inputs, seed, editor, term };
 }

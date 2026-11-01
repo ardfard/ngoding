@@ -2,6 +2,12 @@
 
 const join = (parent, name) => `${parent.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
 
+/* Lucide folder / folder-open / file-code — matches design/main.pen tree */
+const ICON_ATTR = `class="tree-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`;
+const ICON_FOLDER = `<svg ${ICON_ATTR}><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9l-.81-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`;
+const ICON_FOLDER_OPEN = `<svg ${ICON_ATTR}><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>`;
+const ICON_FILE = `<svg ${ICON_ATTR}><path d="M10 12.5 8 15l2 2.5"/><path d="m14 12.5 2 2.5-2 2.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/></svg>`;
+
 function parentDir(path, root) {
   if (!path || path === root) return root;
   const i = path.lastIndexOf("/");
@@ -77,6 +83,14 @@ export function createFileTree({ root, mount, vm, onOpen, onStatus, onPathRemove
         spacer.className = "tree-toggle-spacer";
         row.appendChild(spacer);
       }
+
+      const icon = document.createElement("span");
+      icon.className = "tree-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = ent.type === "dir"
+        ? (expanded.has(path) ? ICON_FOLDER_OPEN : ICON_FOLDER)
+        : ICON_FILE;
+      row.appendChild(icon);
 
       const label = document.createElement("button");
       label.type = "button";
