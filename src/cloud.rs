@@ -485,3 +485,91 @@ pub async fn get_snapshot(
     }
     res
 }
+
+fn share_id() -> String {
+    use rand::RngExt;
+    let bytes: [u8; 16] = rand::rng().random();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateShareBody {
+    pack: Value,
+    source_session_id: Option<Uuid>,
+    name: Option<String>,
+}
+
+pub async fn create_share(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<CreateShareBody>,
+) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    if body.pack.get("version").and_then(|v| v.as_u64()) != Some(1) {
+        return json_ok(StatusCode::BAD_REQUEST, json!({ "error": "bad pack" }));
+    }
+    let id = share_id();
+    let rel = format!("shares/{id}.json.gz");
+    let path = state.data_dir.join(&rel);
+    let json = match serde_json::to_vec(&body.pack) {
+        Ok(v) => v,
+        Err(_) => return json_ok(StatusCode::BAD_REQUEST, json!({ "error": "bad pack" })),
+    };
+    // Store uncompressed JSON for simplicity (filename keeps .json.gz for plan compat).
+    if let Err(e) = tokio::fs::write(&path, &json).await {
+        eprintln!("create_share write: {e}");
+        return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
+    }
+    let user_id = cookie_user(&headers, &state.secret);
+    let _ = body.name;
+    if let Err(e) = sqlx::query(
+        "INSERT INTO shares (id, source_session_id, user_id, pack_path) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&id)
+    .bind(body.source_session_id)
+    .bind(user_id)
+    .bind(&rel)
+    .execute(db)
+    .await
+    {
+        eprintln!("create_share insert: {e}");
+        let _ = tokio::fs::remove_file(&path).await;
+        return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
+    }
+    json_ok(
+        StatusCode::OK,
+        json!({ "id": id, "url": format!("/s/{id}") }),
+    )
+}
+
+pub async fn fork_share(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let row = sqlx::query_as::<_, (String, Option<chrono::DateTime<Utc>>)>(
+        "SELECT pack_path, expires_at FROM shares WHERE id = $1",
+    )
+    .bind(&id)
+    .fetch_optional(db)
+    .await;
+    let Ok(Some((rel, expires_at))) = row else {
+        return json_ok(StatusCode::NOT_FOUND, json!({ "error": "not found" }));
+    };
+    if expires_at.is_some_and(|t| t < Utc::now()) {
+        return json_ok(StatusCode::NOT_FOUND, json!({ "error": "expired" }));
+    }
+    let path = state.data_dir.join(&rel);
+    let Ok(bytes) = tokio::fs::read(&path).await else {
+        return json_ok(StatusCode::NOT_FOUND, json!({ "error": "not found" }));
+    };
+    let pack: Value = match serde_json::from_slice(&bytes) {
+        Ok(v) => v,
+        Err(_) => return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "bad pack" })),
+    };
+    json_ok(StatusCode::OK, json!({ "pack": pack }))
+}

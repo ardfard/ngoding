@@ -4,7 +4,7 @@ import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
 import { createFsSync } from "./fs-sync.js";
 import { languageFromPath, playgroundTemplate } from "./languages.js";
-import { authMe, downloadSnapshot, uploadSnapshot, upsertPlaySession } from "./cloud-api.js";
+import { authMe, createShare, downloadSnapshot, forkShare, uploadSnapshot, upsertPlaySession } from "./cloud-api.js";
 import {
   LEGACY_PLAY_SAVE_KEY,
   getSession,
@@ -12,6 +12,7 @@ import {
   playSaveKey,
   touchSession,
 } from "./play-sessions.js";
+import { applySharePackPlan, collectSharePack } from "./share-pack.js";
 import { resolvePlaySnapshot } from "./session-load.js";
 import * as store from "./store.js";
 import { formatPersistStatus, persistPillClass } from "./vm-persist.js";
@@ -386,6 +387,22 @@ export async function startPlay(vm) {
       }
     };
   }
+
+  if ($("share-btn")) {
+    $("share-btn").onclick = async () => {
+      try {
+        setStatus("creating share…");
+        const { pack, skipped } = await collectSharePack(vm, { root: "/home/user" });
+        const { url } = await createShare({ pack, sourceSessionId: sessionId });
+        const absolute = new URL(url, location.origin).href;
+        await navigator.clipboard.writeText(absolute);
+        setStatus(skipped ? `share link copied (${skipped} large files skipped)` : "share link copied", "ready");
+      } catch (e) {
+        console.error(e);
+        setStatus(e.message || "share failed", "error");
+      }
+    };
+  }
   $("editor-save").onclick = () => editor.save();
   $("editor-run").onclick = () => editor.run();
   $("build-btn").onclick = runBuild;
@@ -507,7 +524,23 @@ export async function startPlay(vm) {
     .then(async ({ restored }) => {
       await prepareWorkspace();
       const session = getSession(sessionId);
-      if (!restored && session?.template && session.template !== "blank") {
+      const forkId = params.get("fork");
+      if (forkId) {
+        try {
+          setStatus("applying shared files…");
+          const { pack } = await forkShare(forkId);
+          for (const f of applySharePackPlan(pack)) {
+            const parts = f.path.split("/").filter(Boolean);
+            for (let i = 1; i < parts.length; i++) {
+              await vm.mkdir("/" + parts.slice(0, i).join("/"));
+            }
+            await vm.writeFile(f.path, f.text);
+          }
+        } catch (e) {
+          console.error(e);
+          setStatus(e.message || "fork apply failed", "error");
+        }
+      } else if (!restored && session?.template && session.template !== "blank") {
         await seedTemplate(session.template);
       }
       ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;

@@ -66,6 +66,9 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/cloud-api.js" => "public/cloud-api.js",
     "/session-load.js" => "public/session-load.js",
     "/vm-image.js" => "public/vm-image.js",
+    "/share-pack.js" => "public/share-pack.js",
+    "/share.js" => "public/share.js",
+    "/s" => "public/share.html",
     "/play-sessions.js" => "public/play-sessions.js",
     "/exercise-progress.js" => "public/exercise-progress.js",
     "/play" => "public/play.html",
@@ -208,6 +211,19 @@ fn send(status: StatusCode, payload: Value) -> Response {
         .into_response()
 }
 
+async fn share_landing() -> Response {
+    let file = &EMBEDDED["/s"];
+    (
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::ETAG, file.etag.as_str()),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        file.body,
+    )
+        .into_response()
+}
+
 // Joins a URL path onto dir, refusing anything that could step outside it.
 fn safe_join(dir: &Path, rel: &str) -> Option<PathBuf> {
     let rel = percent_decode_str(rel).decode_utf8().ok()?;
@@ -309,6 +325,9 @@ async fn main() -> std::io::Result<()> {
             "/api/play/sessions/{id}/snapshot",
             axum::routing::put(cloud::put_snapshot).get(cloud::get_snapshot),
         )
+        .route("/api/shares", post(cloud::create_share))
+        .route("/api/shares/{id}/fork", post(cloud::fork_share))
+        .route("/s/{id}", get(share_landing))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

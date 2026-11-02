@@ -97,6 +97,29 @@ export async function uploadSnapshot(id, blob, { image, savedAt } = {}) {
   return parseJson(res);
 }
 
+export async function createShare({ pack, sourceSessionId, name } = {}) {
+  const res = await fetch("/api/shares", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      pack,
+      sourceSessionId,
+      name,
+    }),
+  });
+  const body = await parseJson(res);
+  if (!res.ok) throw new Error(body?.error || `share ${res.status}`);
+  return body;
+}
+
+export async function forkShare(id) {
+  const res = await fetch(`/api/shares/${encodeURIComponent(id)}/fork`, { method: "POST" });
+  const body = await parseJson(res);
+  if (!res.ok) throw new Error(body?.error || `fork ${res.status}`);
+  return body;
+}
+
 /** @returns {Promise<{ image: string, session: string, savedAt: number, blob: Blob } | null>} */
 export async function downloadSnapshot(id) {
   const res = await fetch(`/api/play/sessions/${encodeURIComponent(id)}/snapshot`, {
