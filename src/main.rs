@@ -5,6 +5,7 @@
 //  - serves the VM image (fs.json, flat/, the snapshot) from NGODING_IMAGE_DIR
 //  - hands out sessions (POST /api/session) and grades output files
 //    (POST /api/grade), so expected answers never reach the browser
+mod db;
 mod problems;
 mod session;
 
@@ -32,8 +33,18 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::io::ReaderStream;
 
+use db::{connect_db, data_dir, ensure_data_dirs};
 use problems::{PROBLEMS, grade, inputs_for};
 use session::Sessions;
+use sqlx::PgPool;
+
+#[derive(Clone)]
+struct AppState {
+    sessions: Arc<Sessions>,
+    secret: String,
+    db: Option<PgPool>,
+    data_dir: PathBuf,
+}
 
 // URL path -> file, relative to the repo root. Only these are embedded. Run
 // `npm install` before `cargo build`: it installs ghostty-web and v86 and bundles
@@ -161,7 +172,7 @@ fn api_grade(sessions: &Sessions, req: ApiRequest) -> (StatusCode, Value) {
 }
 
 async fn api(
-    State(sessions): State<Arc<Sessions>>,
+    State(state): State<AppState>,
     method: Method,
     uri: Uri,
     body: Body,
@@ -177,8 +188,8 @@ async fn api(
         return send(StatusCode::BAD_REQUEST, json!({ "error": "bad request" }));
     };
     let (status, payload) = match uri.path() {
-        "/api/session" => api_session(&sessions, req),
-        _ => api_grade(&sessions, req),
+        "/api/session" => api_session(&state.sessions, req),
+        _ => api_grade(&state.sessions, req),
     };
     send(status, payload)
 }
@@ -250,13 +261,33 @@ async fn main() -> std::io::Result<()> {
     if !image_dir.join("version.json").is_file() {
         eprintln!("warning: no VM image in {} (set NGODING_IMAGE_DIR)", image_dir.display());
     }
-    let sessions = Arc::new(Sessions::new(&load_secret()?));
+    let secret = load_secret()?;
+    let data_dir = data_dir();
+    ensure_data_dirs(&data_dir)?;
+    let db = match connect_db().await {
+        Ok(pool) => {
+            if pool.is_none() {
+                eprintln!("warning: DATABASE_URL unset; accounts/cloud APIs disabled");
+            }
+            pool
+        }
+        Err(e) => {
+            eprintln!("warning: database unavailable ({e}); accounts/cloud APIs disabled");
+            None
+        }
+    };
+    let state = AppState {
+        sessions: Arc::new(Sessions::new(&secret)),
+        secret,
+        db,
+        data_dir,
+    };
     let app = Router::new()
         .route("/problems", any(|| async { Redirect::temporary("/exercise") }))
         .route("/api/session", any(api))
         .route("/api/grade", any(api))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
-        .with_state(sessions);
+        .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     println!("ngoding PoC on http://localhost:{port}");
     axum::serve(listener, app).await
