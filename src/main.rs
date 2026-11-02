@@ -6,7 +6,9 @@
 //  - hands out sessions (POST /api/session) and grades output files
 //    (POST /api/grade), so expected answers never reach the browser
 mod auth;
+mod cloud;
 mod db;
+mod mail;
 mod problems;
 mod session;
 
@@ -26,7 +28,7 @@ use axum::{
     extract::{Request, State},
     http::{HeaderMap, Method, StatusCode, Uri, header},
     response::{IntoResponse, Redirect, Response},
-    routing::any,
+    routing::{any, get, post},
 };
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -35,16 +37,19 @@ use sha2::{Digest, Sha256};
 use tokio_util::io::ReaderStream;
 
 use db::{connect_db, data_dir, ensure_data_dirs};
+use mail::MailConfig;
 use problems::{PROBLEMS, grade, inputs_for};
 use session::Sessions;
 use sqlx::PgPool;
 
 #[derive(Clone)]
-struct AppState {
-    sessions: Arc<Sessions>,
-    secret: String,
-    db: Option<PgPool>,
-    data_dir: PathBuf,
+pub(crate) struct AppState {
+    pub(crate) sessions: Arc<Sessions>,
+    pub(crate) secret: String,
+    pub(crate) db: Option<PgPool>,
+    pub(crate) data_dir: PathBuf,
+    pub(crate) mail: MailConfig,
+    pub(crate) public_url: String,
 }
 
 // URL path -> file, relative to the repo root. Only these are embedded. Run
@@ -265,6 +270,8 @@ async fn main() -> std::io::Result<()> {
     let secret = load_secret()?;
     let data_dir = data_dir();
     ensure_data_dirs(&data_dir)?;
+    let mail = MailConfig::from_env();
+    let public_url = std::env::var("NGODING_PUBLIC_URL").unwrap_or_else(|_| format!("http://localhost:{port}"));
     let db = match connect_db().await {
         Ok(pool) => {
             if pool.is_none() {
@@ -282,11 +289,17 @@ async fn main() -> std::io::Result<()> {
         secret,
         db,
         data_dir,
+        mail,
+        public_url,
     };
     let app = Router::new()
         .route("/problems", any(|| async { Redirect::temporary("/exercise") }))
         .route("/api/session", any(api))
         .route("/api/grade", any(api))
+        .route("/api/auth/request", post(cloud::auth_request))
+        .route("/api/auth/me", get(cloud::auth_me))
+        .route("/api/auth/logout", post(cloud::auth_logout))
+        .route("/auth/callback", get(cloud::auth_callback))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

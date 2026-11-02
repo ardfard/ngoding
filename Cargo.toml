@@ -6,7 +6,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["json", "query"] }
 base64 = "0.23.1"
 chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.13.0"
