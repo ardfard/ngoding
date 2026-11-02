@@ -79,3 +79,38 @@ export async function deleteCloudSession(id) {
   });
   return res.ok || res.status === 404;
 }
+
+export async function uploadSnapshot(id, blob, { image, savedAt } = {}) {
+  const headers = { "content-type": "application/gzip" };
+  if (image) headers["x-ngoding-image"] = image;
+  if (savedAt != null) headers["x-ngoding-saved-at"] = String(savedAt);
+  const res = await fetch(`/api/play/sessions/${encodeURIComponent(id)}/snapshot`, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers,
+    body: blob,
+  });
+  if (!res.ok) {
+    const body = await parseJson(res);
+    throw new Error(body?.error || `upload ${res.status}`);
+  }
+  return parseJson(res);
+}
+
+/** @returns {Promise<{ image: string, session: string, savedAt: number, blob: Blob } | null>} */
+export async function downloadSnapshot(id) {
+  const res = await fetch(`/api/play/sessions/${encodeURIComponent(id)}/snapshot`, {
+    credentials: "same-origin",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  const image = res.headers.get("x-ngoding-image") || "";
+  const savedAt = Number(res.headers.get("x-ngoding-saved-at") || Date.now());
+  return {
+    image,
+    session: `play:${id}`,
+    savedAt,
+    blob,
+  };
+}

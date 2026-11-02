@@ -4,7 +4,7 @@ import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
 import { createFsSync } from "./fs-sync.js";
 import { languageFromPath, playgroundTemplate } from "./languages.js";
-import { authMe, upsertPlaySession } from "./cloud-api.js";
+import { authMe, downloadSnapshot, uploadSnapshot, upsertPlaySession } from "./cloud-api.js";
 import {
   LEGACY_PLAY_SAVE_KEY,
   getSession,
@@ -12,6 +12,7 @@ import {
   playSaveKey,
   touchSession,
 } from "./play-sessions.js";
+import { resolvePlaySnapshot } from "./session-load.js";
 import * as store from "./store.js";
 import { formatPersistStatus, persistPillClass } from "./vm-persist.js";
 
@@ -57,6 +58,21 @@ export async function startPlay(vm) {
   const cloudUser = await authMe();
   if (cloudUser && touched) {
     upsertPlaySession(touched).catch((e) => console.error(e));
+  }
+  if ($("cloud-save")) $("cloud-save").hidden = !cloudUser;
+
+  try {
+    const resolved = await resolvePlaySnapshot({
+      sessionId,
+      localGet: (key) => store.get(key),
+      cloudGetSnapshot: downloadSnapshot,
+      signedIn: !!cloudUser,
+    });
+    if (resolved.source === "cloud" && resolved.record) {
+      await store.put(playSaveKey(sessionId), resolved.record);
+    }
+  } catch (e) {
+    console.error(e);
   }
 
   let ready = "";
@@ -352,6 +368,24 @@ export async function startPlay(vm) {
   $("build-cmd").onblur = () => syncBuildInput();
 
   $("reset").onclick = reset;
+
+  if ($("cloud-save")) {
+    $("cloud-save").onclick = async () => {
+      if (!cloudUser) return;
+      try {
+        setStatus("saving to cloud…");
+        await vm.save();
+        const local = await store.get(playSaveKey(sessionId));
+        if (!local?.blob) throw new Error("nothing to upload");
+        await upsertPlaySession(getSession(sessionId) ?? { id: sessionId, name: "Session", createdAt: Date.now(), updatedAt: Date.now(), template: "blank" });
+        await uploadSnapshot(sessionId, local.blob, { image: local.image, savedAt: local.savedAt });
+        setStatus("saved to cloud", "ready");
+      } catch (e) {
+        console.error(e);
+        setStatus(e.message || "cloud save failed", "error");
+      }
+    };
+  }
   $("editor-save").onclick = () => editor.save();
   $("editor-run").onclick = () => editor.run();
   $("build-btn").onclick = runBuild;

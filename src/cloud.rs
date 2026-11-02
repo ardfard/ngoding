@@ -1,4 +1,5 @@
 use axum::{
+    body::{Body, to_bytes},
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
@@ -361,4 +362,126 @@ pub async fn delete_play_session(
         let _ = tokio::fs::remove_file(path).await;
     }
     json_ok(StatusCode::OK, json!({ "ok": true }))
+}
+
+const SNAPSHOT_MAX: usize = 100 * 1024 * 1024;
+
+pub async fn put_snapshot(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    body: Body,
+) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let owned = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::bigint FROM play_sessions WHERE id = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(uid)
+    .fetch_one(db)
+    .await;
+    match owned {
+        Ok(n) if n > 0 => {}
+        Ok(_) => return json_ok(StatusCode::NOT_FOUND, json!({ "error": "not found" })),
+        Err(e) => {
+            eprintln!("put_snapshot own: {e}");
+            return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
+        }
+    }
+
+    let Ok(bytes) = to_bytes(body, SNAPSHOT_MAX).await else {
+        return json_ok(StatusCode::PAYLOAD_TOO_LARGE, json!({ "error": "snapshot too large" }));
+    };
+    if bytes.is_empty() {
+        return json_ok(StatusCode::BAD_REQUEST, json!({ "error": "empty snapshot" }));
+    }
+
+    let image = headers
+        .get("x-ngoding-image")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let saved_at = headers
+        .get("x-ngoding-saved-at")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<i64>().ok())
+        .and_then(chrono::DateTime::from_timestamp_millis)
+        .unwrap_or_else(Utc::now);
+
+    let rel = format!("snapshots/{id}.bin.gz");
+    let path = state.data_dir.join(&rel);
+    if let Err(e) = tokio::fs::write(&path, &bytes).await {
+        eprintln!("put_snapshot write: {e}");
+        return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
+    }
+
+    if let Err(e) = sqlx::query(
+        "UPDATE play_sessions SET snapshot_path = $1, snapshot_bytes = $2, snapshot_saved_at = $3, \
+         image = COALESCE($4, image), updated_at = now() WHERE id = $5 AND user_id = $6",
+    )
+    .bind(&rel)
+    .bind(bytes.len() as i64)
+    .bind(saved_at)
+    .bind(&image)
+    .bind(id)
+    .bind(uid)
+    .execute(db)
+    .await
+    {
+        eprintln!("put_snapshot update: {e}");
+        return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
+    }
+    json_ok(StatusCode::OK, json!({ "ok": true, "bytes": bytes.len() }))
+}
+
+pub async fn get_snapshot(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let row = sqlx::query_as::<_, (Option<String>, Option<String>, Option<chrono::DateTime<Utc>>)>(
+        "SELECT snapshot_path, image, snapshot_saved_at FROM play_sessions WHERE id = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(uid)
+    .fetch_optional(db)
+    .await;
+
+    let Ok(Some((Some(rel), image, saved_at))) = row else {
+        return json_ok(StatusCode::NOT_FOUND, json!({ "error": "not found" }));
+    };
+    let path = state.data_dir.join(&rel);
+    let Ok(bytes) = tokio::fs::read(&path).await else {
+        return json_ok(StatusCode::NOT_FOUND, json!({ "error": "not found" }));
+    };
+
+    let mut res = Response::new(Body::from(bytes));
+    *res.status_mut() = StatusCode::OK;
+    let headers_mut = res.headers_mut();
+    headers_mut.insert(header::CONTENT_TYPE, "application/gzip".parse().unwrap());
+    headers_mut.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    if let Some(img) = image {
+        headers_mut.insert("x-ngoding-image", img.parse().unwrap());
+    }
+    if let Some(t) = saved_at {
+        headers_mut.insert(
+            "x-ngoding-saved-at",
+            t.timestamp_millis().to_string().parse().unwrap(),
+        );
+    }
+    res
 }

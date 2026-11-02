@@ -64,6 +64,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/" => "public/index.html",
     "/home.js" => "public/home.js",
     "/cloud-api.js" => "public/cloud-api.js",
+    "/session-load.js" => "public/session-load.js",
     "/play-sessions.js" => "public/play-sessions.js",
     "/exercise-progress.js" => "public/exercise-progress.js",
     "/play" => "public/play.html",
@@ -303,6 +304,10 @@ async fn main() -> std::io::Result<()> {
         .route("/auth/callback", get(cloud::auth_callback))
         .route("/api/play/sessions", get(cloud::list_play_sessions))
         .route("/api/play/sessions/{id}", axum::routing::put(cloud::upsert_play_session).delete(cloud::delete_play_session))
+        .route(
+            "/api/play/sessions/{id}/snapshot",
+            axum::routing::put(cloud::put_snapshot).get(cloud::get_snapshot),
+        )
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
