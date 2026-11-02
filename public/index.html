@@ -8,39 +8,127 @@
     <script type="module" src="/home.js"></script>
   </head>
   <body class="home">
-    <main class="home-shell">
-      <header class="home-hero">
-        <h1 class="home-brand">ngoding</h1>
-        <p class="home-tagline">Coding exercises in an in-browser Linux sandbox.</p>
-        <div id="account" class="home-account" hidden>
-          <form id="auth-form" class="home-auth-form">
-            <label class="sr-only" for="auth-email">Email</label>
-            <input id="auth-email" type="email" required placeholder="you@example.com" autocomplete="email" />
-            <button type="submit" class="home-btn home-btn-secondary">Sign in</button>
-          </form>
-          <p id="auth-status" class="home-auth-status" hidden></p>
-          <div id="auth-signed-in" hidden>
-            <span id="auth-email-label"></span>
-            <button type="button" id="auth-logout" class="home-btn home-btn-secondary">Log out</button>
+    <div class="home-shell">
+      <header class="home-top">
+        <a class="home-brand" href="/" aria-label="ngoding home">ngoding<span class="home-cursor" aria-hidden="true"></span></a>
+        <nav class="home-nav">
+          <a href="/exercise">Exercises</a>
+          <a href="https://github.com/ardfard/ngoding">GitHub</a>
+          <div id="account" class="home-account" hidden>
+            <button type="button" id="auth-toggle" class="home-nav-strong" aria-expanded="false" aria-controls="auth-popover">Sign in</button>
+            <div id="auth-signed-in" class="home-signed-in" hidden>
+              <span id="auth-email-label"></span>
+              <button type="button" id="auth-logout" class="home-nav-strong">Log out</button>
+            </div>
+            <div id="auth-popover" class="home-auth-popover" hidden>
+              <form id="auth-form" class="home-auth-form">
+                <label for="auth-email">Sign in with a link sent to your email.</label>
+                <div class="home-auth-row">
+                  <input id="auth-email" type="email" required placeholder="you@example.com" autocomplete="email" />
+                  <button type="submit" id="auth-submit" class="home-cta">Send link</button>
+                </div>
+              </form>
+              <p id="auth-status" class="home-auth-status" role="status" hidden></p>
+            </div>
           </div>
-        </div>
+        </nav>
       </header>
-      <div class="home-panels">
-        <section class="home-panel" id="playground-panel" aria-labelledby="playground-heading">
-          <p class="home-panel-label" id="playground-heading">PLAYGROUND</p>
-          <p class="home-panel-blurb">Open-ended IDE. Each session keeps its own sandbox.</p>
-          <button type="button" id="new-session" class="home-btn home-btn-primary">New session</button>
-          <ul id="session-list" class="session-list"></ul>
-          <p id="session-empty" class="home-empty" hidden>No sessions yet. Start one above.</p>
+
+      <main>
+        <section class="home-hero">
+          <div class="home-hero-copy">
+            <h1 class="home-headline">A code editor<br />with Linux inside.</h1>
+            <ul class="home-points">
+              <li><b>Runs in your browser.</b> No server runs your code.</li>
+              <li><b>Resumes from a snapshot.</b> No boot wait.</li>
+              <li><b>Share a workspace</b> with a link.</li>
+            </ul>
+            <div class="home-actions">
+              <button type="button" id="open-editor" class="home-cta">
+                Open the editor
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </button>
+              <a href="/exercise" class="home-link-muted">or try an exercise</a>
+            </div>
+          </div>
+
+          <div class="home-preview" aria-hidden="true">
+            <div class="home-preview-tabs">
+              <span><span class="is-active">main.c</span><span>notes.txt</span></span>
+              <span class="home-preview-run">▶ Run</span>
+            </div>
+<pre class="home-preview-code"><i>1</i><span class="t-y">#include </span><span class="t-g">&lt;stdio.h&gt;</span>
+<i>2</i>
+<i>3</i><span class="t-a">int </span><span class="t-y">main</span>(void) {
+<i>4</i><span class="t-y">    printf</span>(<span class="t-g">"hello from %s\n"</span>, <span class="t-g">"linux"</span>);
+<i>5</i><span class="t-a">    return </span><span class="t-o">0</span>;
+<i>6</i>}</pre>
+<pre class="home-preview-term"><span class="t-a">~ $ </span>gcc main.c -o hello &amp;&amp; ./hello
+<span class="t-m">hello from linux</span>
+<span class="t-a">~ $ </span>uname -m
+<span class="t-m">i686</span>
+<span class="t-a">~ $ </span><span class="home-cursor"></span></pre>
+          </div>
         </section>
-        <section class="home-panel" id="exercise-panel" aria-labelledby="exercise-heading">
-          <p class="home-panel-label" id="exercise-heading">EXERCISE</p>
-          <p class="home-panel-blurb">Graded problems. Continue from the first unsolved.</p>
-          <p id="exercise-stats" class="home-stats">…</p>
-          <a id="start-exercise" class="home-btn home-btn-secondary" href="/exercise">Start</a>
+
+        <section class="home-languages" aria-label="Languages">
+          <h2>LANGUAGES</h2>
+          <ul>
+            <li>
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M14.25 0.18l0.9 0.2 0.73 0.26 0.59 0.3 0.45 0.32 0.34 0.34 0.25 0.34 0.16 0.33 0.1 0.3 0.04 0.26 0.02 0.2-0.01 0.13v5.34l-0.05 0.63-0.13 0.55-0.21 0.46-0.26 0.38-0.3 0.31-0.33 0.25-0.35 0.19-0.35 0.14-0.33 0.1-0.3 0.07-0.26 0.04-0.21 0.02h-5.97l-0.69 0.05-0.59 0.14-0.5 0.22-0.41 0.27-0.33 0.32-0.27 0.35-0.2 0.36-0.15 0.37-0.1 0.35-0.07 0.32-0.04 0.27-0.02 0.21v3.06h-2.23l-0.21-0.03-0.28-0.07-0.32-0.12-0.35-0.18-0.36-0.26-0.36-0.36-0.35-0.46-0.32-0.59-0.28-0.73-0.21-0.88-0.14-1.05-0.05-1.23 0.06-1.22 0.16-1.04 0.24-0.87 0.32-0.71 0.36-0.57 0.4-0.44 0.42-0.33 0.42-0.24 0.4-0.16 0.36-0.1 0.32-0.05 0.24-0.01h0.16l0.06 0.01h8.16v-0.83h-5.84l-0.01-2.75-0.02-0.37 0.05-0.34 0.11-0.31 0.17-0.28 0.25-0.26 0.31-0.23 0.38-0.2 0.44-0.18 0.51-0.15 0.58-0.12 0.64-0.1 0.71-0.06 0.77-0.04 0.84-0.02 1.27 0.05z m-6.3 1.98l-0.23 0.33-0.08 0.41 0.08 0.41 0.23 0.34 0.33 0.22 0.41 0.09 0.41-0.09 0.33-0.22 0.23-0.34 0.08-0.41-0.08-0.41-0.23-0.33-0.33-0.22-0.41-0.09-0.41 0.09z m13.09 3.95l0.28 0.06 0.32 0.12 0.35 0.18 0.36 0.27 0.36 0.35 0.35 0.47 0.32 0.59 0.28 0.73 0.21 0.88 0.14 1.04 0.05 1.23-0.06 1.23-0.16 1.04-0.24 0.86-0.32 0.71-0.36 0.57-0.4 0.45-0.42 0.33-0.42 0.24-0.4 0.16-0.36 0.09-0.32 0.05-0.24 0.02-0.16-0.01h-8.22v0.82h5.84l0.01 2.76 0.02 0.36-0.05 0.34-0.11 0.31-0.17 0.29-0.25 0.25-0.31 0.24-0.38 0.2-0.44 0.17-0.51 0.15-0.58 0.13-0.64 0.09-0.71 0.07-0.77 0.04-0.84 0.01-1.27-0.04-1.07-0.14-0.9-0.2-0.73-0.25-0.59-0.3-0.45-0.33-0.34-0.34-0.25-0.34-0.16-0.33-0.1-0.3-0.04-0.25-0.02-0.2 0.01-0.13v-5.34l0.05-0.64 0.13-0.54 0.21-0.46 0.26-0.38 0.3-0.32 0.33-0.24 0.35-0.2 0.35-0.14 0.33-0.1 0.3-0.06 0.26-0.04 0.21-0.02 0.13-0.01h5.84l0.69-0.05 0.59-0.14 0.5-0.21 0.41-0.28 0.33-0.32 0.27-0.35 0.2-0.36 0.15-0.36 0.1-0.35 0.07-0.32 0.04-0.28 0.02-0.21v-3.06h2.09l0.14 0.01z m-6.47 14.25l-0.23 0.33-0.08 0.41 0.08 0.41 0.23 0.33 0.33 0.23 0.41 0.08 0.41-0.08 0.33-0.23 0.23-0.33 0.08-0.41-0.08-0.41-0.23-0.33-0.33-0.23-0.41-0.08-0.41 0.08z" /></svg>
+              <span>Python</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M16.5921 9.1962s-0.354-3.298-3.627-3.39c-3.2741-0.09-4.9552 2.474-4.9552 6.14 0 3.6651 1.858 6.5972 5.0451 6.5972 3.184 0 3.5381-3.665 3.5381-3.665l6.1041 0.365s0.36 3.31-2.196 5.836c-2.552 2.5241-5.6901 2.9371-7.8762 2.9201-2.19-0.017-5.2261 0.034-8.1602-2.97-2.938-3.0101-3.436-5.9302-3.436-8.8002 0-2.8701 0.556-6.6702 4.047-9.5502 2.3682-1.9591 4.7732-2.6791 7.1782-2.6791 10.0422 0 10.7172 9.2602 10.7172 9.2602z" /></svg>
+              <span>C</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M22.394 6c-0.167-0.29-0.398-0.543-0.652-0.69l-8.816-5.09c-0.509-0.294-1.34-0.294-1.848 0l-8.818 5.09c-0.508 0.293-0.923 1.013-0.923 1.6v10.18c0 0.294 0.104 0.62 0.271 0.91 0.167 0.29 0.398 0.543 0.652 0.69l8.816 5.09c0.508 0.293 1.34 0.293 1.848 0l8.816-5.09c0.254-0.147 0.485-0.4 0.652-0.69 0.167-0.29 0.27-0.616 0.27-0.91v-10.18c0.003-0.294-0.1-0.62-0.268-0.91z m-10.394 13.11c-3.92 0-7.109-3.19-7.109-7.11 0-3.92 3.19-7.11 7.11-7.11a7.133 7.133 0 0 1 6.156 3.553l-3.076 1.78a3.567 3.567 0 0 0-3.08-1.78 3.56 3.56 0 0 0-3.557 3.557 3.56 3.56 0 0 0 3.556 3.555 3.57 3.57 0 0 0 3.08-1.778l3.078 1.78a7.135 7.135 0 0 1-6.158 3.553z m7.11-6.715h-0.79v0.79h-0.79v-0.79h-0.79v-0.79h0.79v-0.79h0.79v0.79h0.79z m2.962 0h-0.79v0.79h-0.79v-0.79h-0.79v-0.79h0.79v-0.79h0.79v0.79h0.79z" /></svg>
+              <span>C++</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M1.811 10.231c-0.047 0-0.058-0.023-0.035-0.059l0.246-0.315c0.023-0.035 0.081-0.058 0.128-0.058h4.172c0.046 0 0.058 0.035 0.035 0.07l-0.199 0.303c-0.023 0.036-0.082 0.07-0.117 0.07z m-1.764 1.075c-0.047 0-0.059-0.023-0.035-0.058l0.245-0.316c0.023-0.035 0.082-0.058 0.129-0.058h5.328c0.047 0 0.07 0.035 0.058 0.07l-0.093 0.28c-0.012 0.047-0.058 0.07-0.105 0.07z m2.828 1.075c-0.047 0-0.059-0.035-0.035-0.07l0.163-0.292c0.023-0.035 0.07-0.07 0.117-0.07h2.337c0.047 0 0.07 0.035 0.07 0.082l-0.023 0.28c0 0.047-0.047 0.082-0.082 0.082z m12.129-2.36c-0.736 0.187-1.239 0.327-1.963 0.514-0.176 0.046-0.187 0.058-0.34-0.117-0.174-0.199-0.303-0.327-0.548-0.444-0.737-0.362-1.45-0.257-2.115 0.175-0.795 0.514-1.204 1.274-1.192 2.22 0.011 0.935 0.654 1.706 1.577 1.835 0.795 0.105 1.46-0.175 1.987-0.77 0.105-0.13 0.198-0.27 0.315-0.434h-2.255c-0.245 0-0.304-0.152-0.222-0.35 0.152-0.362 0.432-0.97 0.596-1.274a0.315 0.315 0 0 1 0.292-0.187h4.253c-0.023 0.316-0.023 0.631-0.07 0.947a4.983 4.983 0 0 1-0.958 2.29c-0.841 1.11-1.94 1.8-3.33 1.986-1.145 0.152-2.209-0.07-3.143-0.77-0.865-0.655-1.356-1.52-1.484-2.595-0.152-1.274 0.222-2.419 0.993-3.424 0.83-1.086 1.928-1.776 3.272-2.02 1.098-0.2 2.15-0.07 3.096 0.571 0.62 0.41 1.063 0.97 1.356 1.648 0.07 0.105 0.023 0.164-0.117 0.2m3.868 6.461c-1.064-0.024-2.034-0.328-2.852-1.029a3.665 3.665 0 0 1-1.262-2.255c-0.21-1.32 0.152-2.489 0.947-3.529 0.853-1.122 1.881-1.706 3.272-1.95 1.192-0.21 2.314-0.095 3.33 0.595 0.923 0.63 1.496 1.484 1.648 2.605 0.198 1.578-0.257 2.863-1.344 3.962-0.771 0.783-1.718 1.273-2.805 1.495-0.315 0.06-0.63 0.07-0.934 0.106z m2.78-4.72c-0.011-0.153-0.011-0.27-0.034-0.387-0.21-1.157-1.274-1.81-2.384-1.554-1.087 0.245-1.788 0.935-2.045 2.033-0.21 0.912 0.234 1.835 1.075 2.21 0.643 0.28 1.285 0.244 1.905-0.07 0.923-0.48 1.425-1.228 1.484-2.233z" /></svg>
+              <span>Go</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M23.8346 11.7033l-1.0073-0.6236a13.7268 13.7268 0 0 0-0.0283-0.2936l0.8656-0.8069a0.3483 0.3483 0 0 0-0.1154-0.578l-1.1066-0.414a8.4958 8.4958 0 0 0-0.087-0.2856l0.6904-0.9587a0.3462 0.3462 0 0 0-0.2257-0.5446l-1.1663-0.1894a9.3574 9.3574 0 0 0-0.1407-0.2622l0.49-1.0761a0.3437 0.3437 0 0 0-0.0274-0.3361 0.3486 0.3486 0 0 0-0.3006-0.154l-1.1845 0.0416a6.7444 6.7444 0 0 0-0.1873-0.2268l0.2723-1.153a0.3472 0.3472 0 0 0-0.417-0.4172l-1.1532 0.2724a14.0183 14.0183 0 0 0-0.2278-0.1873l0.0415-1.1845a0.3442 0.3442 0 0 0-0.49-0.328l-1.076 0.491c-0.0872-0.0476-0.1742-0.0952-0.2623-0.1407l-0.1903-1.1673a0.3483 0.3483 0 0 0-0.5447-0.2257l-0.9597 0.6905a8.4867 8.4867 0 0 0-0.2855-0.086l-0.414-1.1066a0.3483 0.3483 0 0 0-0.5781-0.1154l-0.8069 0.8666a9.2936 9.2936 0 0 0-0.2936-0.0284l-0.6236-1.0074a0.3462 0.3462 0 0 0-0.5892 0l-0.6236 1.0073a13.7383 13.7383 0 0 0-0.2936 0.0284l-0.8079-0.8666a0.3462 0.3462 0 0 0-0.578 0.1154l-0.4141 1.1065c-0.0962 0.0274-0.1903 0.0567-0.2855 0.086l-0.9587-0.6903a0.3483 0.3483 0 0 0-0.5447 0.2258l-0.1903 1.1672a9.3574 9.3574 0 0 0-0.2622 0.1407l-1.0762-0.491a0.3462 0.3462 0 0 0-0.49 0.328l0.0416 1.1845a7.9826 7.9826 0 0 0-0.2278 0.1873l-1.1531-0.2725a0.3472 0.3472 0 0 0-0.4171 0.4171l0.2713 1.1531c-0.0628 0.075-0.1255 0.1509-0.1863 0.2268l-1.1845-0.0415a0.3462 0.3462 0 0 0-0.328 0.49l0.491 1.0761a9.167 9.167 0 0 0-0.1407 0.2622l-1.1662 0.1894a0.3483 0.3483 0 0 0-0.2258 0.5446l0.6904 0.9587a13.303 13.303 0 0 0-0.087 0.2855l-1.1065 0.414a0.3483 0.3483 0 0 0-0.1155 0.5781l0.8656 0.807a9.2936 9.2936 0 0 0-0.0283 0.2935l-1.0073 0.6236a0.3442 0.3442 0 0 0 0 0.5892l1.0073 0.6236c0.008 0.0982 0.0182 0.1964 0.0283 0.2936l-0.8656 0.8079a0.3462 0.3462 0 0 0 0.1155 0.578l1.1065 0.4141c0.0273 0.0962 0.0567 0.1914 0.087 0.2855l-0.6904 0.9587a0.3452 0.3452 0 0 0 0.2268 0.5447l1.1662 0.1893c0.0456 0.088 0.0922 0.1751 0.1408 0.2622l-0.491 1.0762a0.3462 0.3462 0 0 0 0.328 0.49l1.1834-0.0415c0.0618 0.0769 0.1235 0.1528 0.1873 0.2277l-0.2713 1.1541a0.3462 0.3462 0 0 0 0.4171 0.4161l1.153-0.2713c0.075 0.0638 0.151 0.1255 0.2279 0.1863l-0.0415 1.1845a0.3442 0.3442 0 0 0 0.49 0.327l1.0761-0.49c0.087 0.0486 0.1741 0.0951 0.2622 0.1407l0.1903 1.1662a0.3483 0.3483 0 0 0 0.5447 0.2268l0.9587-0.6904a9.299 9.299 0 0 0 0.2855 0.087l0.414 1.1066a0.3452 0.3452 0 0 0 0.5781 0.1154l0.8079-0.8656c0.0972 0.0111 0.1954 0.0203 0.2936 0.0294l0.6236 1.0073a0.3472 0.3472 0 0 0 0.5892 0l0.6236-1.0073c0.0982-0.0091 0.1964-0.0183 0.2936-0.0294l0.8069 0.8656a0.3483 0.3483 0 0 0 0.578-0.1154l0.4141-1.1066a8.4626 8.4626 0 0 0 0.2855-0.087l0.9587 0.6904a0.3452 0.3452 0 0 0 0.5447-0.2268l0.1903-1.1662c0.088-0.0456 0.1751-0.0931 0.2622-0.1407l1.0762 0.49a0.3472 0.3472 0 0 0 0.49-0.327l-0.0415-1.1845a6.7267 6.7267 0 0 0 0.2267-0.1863l1.1531 0.2713a0.3472 0.3472 0 0 0 0.4171-0.416l-0.2713-1.1542c0.0628-0.0749 0.1255-0.1508 0.1863-0.2278l1.1845 0.0415a0.3442 0.3442 0 0 0 0.328-0.49l-0.49-1.076c0.0475-0.0872 0.0951-0.1742 0.1407-0.2623l1.1662-0.1893a0.3483 0.3483 0 0 0 0.2258-0.5447l-0.6904-0.9587 0.087-0.2855 1.1066-0.414a0.3462 0.3462 0 0 0 0.1154-0.5781l-0.8656-0.8079c0.0101-0.0972 0.0202-0.1954 0.0283-0.2936l1.0073-0.6236a0.3442 0.3442 0 0 0 0-0.5892z m-6.7413 8.3551a0.7138 0.7138 0 0 1 0.2986-1.396 0.714 0.714 0 1 1-0.2997 1.396z m-0.3422-2.3142a0.649 0.649 0 0 0-0.7715 0.5l-0.3573 1.6685c-1.1035 0.501-2.3285 0.7795-3.6193 0.7795a8.7368 8.7368 0 0 1-3.6951-0.814l-0.3574-1.6684a0.648 0.648 0 0 0-0.7714-0.499l-1.473 0.3158a8.7216 8.7216 0 0 1-0.7613-0.898h7.1676c0.081 0 0.1356-0.0141 0.1356-0.088v-2.536c0-0.074-0.0536-0.0881-0.1356-0.0881h-2.0966v-1.6077h2.2677c0.2065 0 1.1065 0.0587 1.394 1.2088 0.0901 0.3533 0.2875 1.5044 0.4232 1.8729 0.1346 0.413 0.6833 1.2381 1.2685 1.2381h3.5716a0.7492 0.7492 0 0 0 0.1296-0.0131 8.7874 8.7874 0 0 1-0.8119 0.9526z m-9.9142 2.2798a0.714 0.714 0 1 1-0.2997-1.396 0.714 0.714 0 0 1 0.2997 1.396z m-2.7192-11.0268a0.7137 0.7137 0 1 1-1.304 0.5791 0.7137 0.7137 0 0 1 1.304-0.579z m-0.8352 1.9813l1.5347-0.6824a0.65 0.65 0 0 0 0.33-0.8585l-0.3158-0.7147h1.2432v5.6025h-2.5077a8.7753 8.7753 0 0 1-0.2834-3.348z m6.7343-0.5437v-1.6512h2.9601c0.153 0 1.0792 0.1772 1.0792 0.8697 0 0.575-0.7107 0.7815-1.2948 0.7815z m10.7574 1.4862c0 0.2187-0.008 0.4363-0.0243 0.651h-0.9c-0.09 0-0.1265 0.0586-0.1265 0.1477v0.413c0 0.973-0.5487 1.1846-1.0296 1.2382-0.4576 0.0517-0.9648-0.1913-1.0275-0.4717-0.2704-1.5186-0.7198-1.8436-1.4305-2.4034 0.8817-0.5599 1.799-1.386 1.799-2.4915 0-1.1936-0.819-1.9458-1.3769-2.3153-0.7825-0.5163-1.6491-0.6195-1.883-0.6195h-9.3067a8.7651 8.7651 0 0 1 4.907-2.7699l1.0974 1.151a0.648 0.648 0 0 0 0.9182 0.0213l1.227-1.1743a8.7753 8.7753 0 0 1 6.0044 4.2762l-0.8403 1.8982a0.652 0.652 0 0 0 0.33 0.8585l1.6178 0.7188c0.0283 0.2875 0.0425 0.577 0.0425 0.8717z m-9.3006-9.5993a0.7128 0.7128 0 1 1 0.984 1.0316 0.7137 0.7137 0 0 1-0.984-1.0316z m8.3389 6.71a0.7107 0.7107 0 0 1 0.9395-0.3625 0.7137 0.7137 0 1 1-0.9405 0.3635z" /></svg>
+              <span>Rust</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M0 3.535l5.647 8.465-5.647 8.465h4.235l5.648-8.465-5.648-8.465z m5.647 0l5.647 8.465-5.647 8.465h4.235l3.53-5.29 3.53 5.29h4.234l-11.293-16.93z m8.941 4.938l1.883 2.822h7.529v-2.822z m2.824 4.232l1.882 2.822h4.706v-2.822z" /></svg>
+              <span>Haskell</span>
+            </li>
+          </ul>
         </section>
-      </div>
-    </main>
+
+        <section class="home-workspace">
+          <section class="home-playground" aria-labelledby="playground-heading">
+            <header class="home-section-head">
+              <h2 id="playground-heading">PLAYGROUND</h2>
+              <button type="button" id="new-session" class="home-link-accent">+ new session</button>
+            </header>
+            <ul id="session-list" class="session-list"></ul>
+            <p id="session-empty" class="home-empty" hidden>No sessions yet. Open the editor to start one.</p>
+          </section>
+
+          <section class="home-exercises" aria-labelledby="exercise-heading">
+            <header class="home-section-head">
+              <h2 id="exercise-heading">EXERCISES</h2>
+              <span id="exercise-stats" class="home-score">…</span>
+            </header>
+            <div id="exercise-next" class="home-next" hidden>
+              <p class="home-next-title"><span id="exercise-num"></span><span id="exercise-title"></span></p>
+              <p id="exercise-blurb" class="home-next-blurb"></p>
+            </div>
+            <a id="start-exercise" class="home-link-accent" href="/exercise">
+              <span id="start-exercise-label">Start</span>
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </a>
+          </section>
+        </section>
+      </main>
+    </div>
+
     <dialog id="session-template-dialog" class="session-template-dialog" aria-labelledby="session-template-title">
       <form id="session-template-form" class="session-template-modal">
         <header class="session-template-header">

@@ -8,15 +8,17 @@
     <script type="module" src="/share.js"></script>
   </head>
   <body class="home">
-    <main class="home-shell">
-      <header class="home-hero">
-        <a class="home-brand" href="/" style="text-decoration:none;color:inherit">ngoding</a>
-        <p class="home-tagline">Someone shared a playground with you.</p>
+    <div class="home-shell">
+      <header class="home-top">
+        <a class="home-brand" href="/" aria-label="ngoding home">ngoding<span class="home-cursor" aria-hidden="true"></span></a>
       </header>
-      <section class="home-panel" style="max-width:420px">
-        <p id="share-status" class="home-panel-blurb">Loading share…</p>
-        <button type="button" id="fork-btn" class="home-btn home-btn-primary" disabled>Fork into my playground</button>
-      </section>
-    </main>
+      <main class="share-main">
+        <h1 class="home-headline">Someone shared a playground with you.</h1>
+        <section class="home-panel" style="max-width:420px">
+          <p id="share-status" class="home-panel-blurb">Loading share…</p>
+          <button type="button" id="fork-btn" class="home-btn home-btn-primary" disabled>Fork into my playground</button>
+        </section>
+      </main>
+    </div>
   </body>
 </html>

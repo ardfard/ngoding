@@ -9,8 +9,8 @@ import {
   putExerciseProgress,
   upsertPlaySession,
 } from "./cloud-api.js";
-import { exerciseStats, unionSolved } from "./exercise-progress.js";
-import { LANGUAGES } from "./languages.js";
+import { exerciseStats, pickExerciseProblem, unionSolved } from "./exercise-progress.js";
+import { LANGUAGES, playgroundTemplate } from "./languages.js";
 import {
   createSession,
   listSessions,
@@ -59,15 +59,27 @@ function relativeTime(ms) {
   const sec = Math.round((Date.now() - ms) / 1000);
   if (sec < 45) return "just now";
   const min = Math.round(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 36) return `${hr}h ago`;
-  return new Date(ms).toLocaleDateString();
+  if (min < 60) return `${min} min ago`;
+  const then = new Date(ms);
+  const today = new Date();
+  const days = Math.round((new Date(today.toDateString()) - new Date(then.toDateString())) / 86_400_000);
+  if (days === 0) return `${Math.round(min / 60)} h ago`;
+  if (days === 1) return "yesterday";
+  const opts = { month: "short", day: "numeric" };
+  if (then.getFullYear() !== today.getFullYear()) opts.year = "numeric";
+  return then.toLocaleDateString(undefined, opts);
 }
 
 function openSession(id) {
   touchSession(id);
   location.href = `/play?s=${encodeURIComponent(id)}`;
+}
+
+function span(className, text) {
+  const el = document.createElement("span");
+  el.className = className;
+  el.textContent = text;
+  return el;
 }
 
 function renderSessions() {
@@ -82,12 +94,17 @@ function renderSessions() {
     const open = document.createElement("button");
     open.type = "button";
     open.className = "session-open";
-    open.innerHTML = `<span class="session-name">${s.name}</span><span class="session-when">${relativeTime(s.updatedAt)}</span>`;
+    open.append(
+      span("session-name", s.name),
+      span("session-file", playgroundTemplate(s.template).open ?? "—"),
+      span("session-when", relativeTime(s.updatedAt)),
+    );
     open.onclick = () => openSession(s.id);
     const del = document.createElement("button");
     del.type = "button";
     del.className = "session-delete";
     del.textContent = "Delete";
+    del.setAttribute("aria-label", `Delete ${s.name}`);
     del.onclick = async (e) => {
       e.stopPropagation();
       removeSession(s.id);
@@ -160,101 +177,186 @@ form.addEventListener("submit", async (e) => {
 
 $("session-template-cancel").onclick = () => dialog.close();
 
-$("new-session").onclick = () => {
+function openTemplateDialog() {
   setSelected("python");
   dialog.showModal();
-};
+}
+
+$("new-session").onclick = openTemplateDialog;
+$("open-editor").onclick = openTemplateDialog;
 
 renderSessions();
 
-function showAuthStatus(html, { asHtml = false } = {}) {
-  const el = $("auth-status");
-  el.hidden = false;
-  if (asHtml) el.innerHTML = html;
-  else el.textContent = html;
+// Where /auth/callback sends the browser back when a link can't be used.
+const AUTH_ERRORS = {
+  used: "That sign-in link was already used. Request a new one.",
+  invalid: "That sign-in link is invalid or has expired. Request a new one.",
+  missing: "That sign-in link is incomplete. Request a new one.",
+  error: "Sign-in failed on the server. Try again.",
+  unavailable: "Accounts are not available on this server.",
+};
+
+function takeAuthError() {
+  const url = new URL(location.href);
+  const code = url.searchParams.get("auth");
+  if (!code) return null;
+  url.searchParams.delete("auth");
+  history.replaceState(null, "", url.pathname + url.search + url.hash);
+  return AUTH_ERRORS[code] ?? AUTH_ERRORS.error;
 }
 
+function showAuthStatus(text, { link, error = false } = {}) {
+  const el = $("auth-status");
+  el.hidden = false;
+  el.classList.toggle("is-error", error);
+  el.textContent = text;
+  if (link) {
+    const a = document.createElement("a");
+    a.href = link;
+    a.textContent = "open the dev sign-in link";
+    el.append(" — or ", a, ".");
+  }
+}
+
+function setAuthPopover(open) {
+  $("auth-popover").hidden = !open;
+  $("auth-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) $("auth-email").focus();
+}
+
+/** Shows the right account controls; resolves to the signed-in user or null. */
 async function initAccount() {
+  const authError = takeAuthError();
   const account = $("account");
   if (!(await accountsAvailable())) {
     account.hidden = true;
-    return;
+    return null;
   }
   account.hidden = false;
-  const form = $("auth-form");
-  const signedIn = $("auth-signed-in");
   const user = await authMe();
   signedInUser = user;
+  const toggle = $("auth-toggle");
+  const popover = $("auth-popover");
   if (user) {
-    form.hidden = true;
-    signedIn.hidden = false;
+    toggle.hidden = true;
+    $("auth-signed-in").hidden = false;
     $("auth-email-label").textContent = user.email;
-    $("auth-status").hidden = true;
-    await pushLocalSessions();
-    await pullCloudSessions();
-    renderSessions();
-    try {
-      const local = JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]");
-      const remote = (await getExerciseProgress()) ?? [];
-      const merged = unionSolved(local, remote);
-      localStorage.setItem("ngoding.solved", JSON.stringify(merged));
-      await putExerciseProgress(merged);
-    } catch (e) {
-      console.error(e);
-    }
-  } else {
-    form.hidden = false;
-    signedIn.hidden = true;
+    $("auth-logout").onclick = async () => {
+      await authLogout();
+      location.reload();
+    };
+    return user;
   }
-  form.onsubmit = async (e) => {
+
+  toggle.onclick = () => setAuthPopover(popover.hidden);
+  document.addEventListener("click", (e) => {
+    if (!popover.hidden && !account.contains(e.target)) setAuthPopover(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !popover.hidden) {
+      setAuthPopover(false);
+      toggle.focus();
+    }
+  });
+  if (authError) {
+    setAuthPopover(true);
+    showAuthStatus(authError, { error: true });
+  }
+
+  const submit = $("auth-submit");
+  $("auth-form").onsubmit = async (e) => {
     e.preventDefault();
     const email = $("auth-email").value.trim();
+    submit.disabled = true;
     try {
       const body = await authRequest(email);
-      if (body.devLink) {
-        showAuthStatus(
-          `Check your email — or <a href="${body.devLink}">open the dev sign-in link</a>.`,
-          { asHtml: true },
-        );
-      } else {
-        showAuthStatus("Check your email for a sign-in link.");
-      }
+      showAuthStatus(`Check ${email} for a sign-in link`, { link: body?.devLink });
+      if (!body?.devLink) $("auth-status").append(".");
     } catch (err) {
       console.error(err);
-      showAuthStatus(err.message || "Could not send sign-in link");
+      showAuthStatus(err.message || "Could not send sign-in link", { error: true });
+    } finally {
+      submit.disabled = false;
     }
   };
-  $("auth-logout").onclick = async () => {
-    await authLogout();
-    location.reload();
-  };
+  return null;
 }
 
-(async () => {
-  initAccount().catch((e) => console.error(e));
-  const statsEl = $("exercise-stats");
+/** Merges this browser's sessions and solved list with the account's. */
+async function syncAccount() {
+  await pushLocalSessions();
+  await pullCloudSessions();
+  renderSessions();
+  const local = JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]");
+  const remote = (await getExerciseProgress()) ?? [];
+  const merged = unionSolved(local, remote);
+  localStorage.setItem("ngoding.solved", JSON.stringify(merged));
+  await putExerciseProgress(merged);
+}
+
+/** Fetches the problem list, resetting local progress if the server issued a new token. */
+async function loadProblems() {
+  const res = await fetch("/api/session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: localStorage.getItem("ngoding.token") }),
+  });
+  if (!res.ok) throw new Error(`session ${res.status}`);
+  const { token, problems } = await res.json();
+  if (token && token !== localStorage.getItem("ngoding.token")) {
+    localStorage.setItem("ngoding.token", token);
+    localStorage.removeItem("ngoding.solved");
+  }
+  return problems;
+}
+
+function firstSentence(html) {
+  const text = new DOMParser().parseFromString(html, "text/html").body.textContent.replace(/\s+/g, " ").trim();
+  const end = text.search(/[.!?](\s|$)/);
+  return end === -1 ? text : text.slice(0, end + 1);
+}
+
+function renderExercises(problems) {
+  const solved = JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]");
+  const { done, total } = exerciseStats(problems, solved);
+  $("exercise-stats").textContent = `${done} of ${total} solved`;
+  $("start-exercise-label").textContent = done > 0 ? "Continue" : "Start";
+  const next = pickExerciseProblem(problems, solved);
+  $("exercise-next").hidden = !next;
+  if (!next) return;
+  $("exercise-num").textContent = String(problems.indexOf(next) + 1).padStart(2, "0");
+  $("exercise-title").textContent = next.title;
+  $("exercise-blurb").textContent = firstSentence(next.description);
+}
+
+function renderExercisesUnavailable() {
   const cta = $("start-exercise");
+  $("exercise-stats").textContent = "—";
+  cta.setAttribute("aria-disabled", "true");
+  cta.title = "Could not reach the server";
+  cta.addEventListener("click", (ev) => ev.preventDefault());
+}
+
+// The token check may wipe local progress, so the account merge runs after it;
+// otherwise a fresh token right after sign-in would discard the synced list.
+const account = initAccount().catch((e) => {
+  console.error(e);
+  return null;
+});
+(async () => {
+  let problems = null;
   try {
-    const res = await fetch("/api/session", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: localStorage.getItem("ngoding.token") }),
-    });
-    if (!res.ok) throw new Error(`session ${res.status}`);
-    const { token, problems } = await res.json();
-    if (token && token !== localStorage.getItem("ngoding.token")) {
-      localStorage.setItem("ngoding.token", token);
-      localStorage.removeItem("ngoding.solved");
-    }
-    const solved = JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]");
-    const { done, total } = exerciseStats(problems, solved);
-    statsEl.textContent = `solved ${done}/${total}`;
-    cta.textContent = done > 0 ? "Continue" : "Start";
+    problems = await loadProblems();
+    renderExercises(problems);
   } catch (e) {
     console.error(e);
-    statsEl.textContent = "—";
-    cta.setAttribute("aria-disabled", "true");
-    cta.title = "Could not reach the server";
-    cta.addEventListener("click", (ev) => ev.preventDefault());
+    renderExercisesUnavailable();
   }
+  if (!(await account)) return;
+  try {
+    await syncAccount();
+  } catch (e) {
+    console.error(e);
+  }
+  if (problems) renderExercises(problems);
 })();
