@@ -87,6 +87,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/ui.js" => "public/ui.js",
     "/v86-config.js" => "public/v86-config.js",
     "/vm.js" => "public/vm.js",
+    "/vm-persist.js" => "public/vm-persist.js",
     "/style.css" => "public/style.css",
     "/v86/bios/seabios.bin" => "public/v86/bios/seabios.bin",
     "/v86/bios/vgabios.bin" => "public/v86/bios/vgabios.bin",
