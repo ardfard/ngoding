@@ -13,7 +13,7 @@ Make playground sessions recoverable and shareable without forcing an account on
 - Exercise solved progress synced to the account when signed in
 - Local IndexedDB remains the fast path; cloud load is on demand when local is missing
 
-Anonymous local play stays the default. Cloud features activate only after sign-in (except opening a share fork, which does not require an account).
+Anonymous local play stays the default. Sign-in is opt-in for wipe recovery, metadata sync, and exercise progress. **Creating or forking a share does not require an account**; anonymous shares are link-only and can be lost if the link is forgotten (no account to list them under).
 
 ## Architecture
 
@@ -30,8 +30,8 @@ Server (Rust / axum)
 ```
 
 - Opening `/play?s=<id>`: local snapshot first; if missing and the signed-in user owns a cloud snapshot, download into IndexedDB then boot; otherwise template/empty boot.
-- Share always forks; it never mutates the owner’s session.
-- Owner cloud save = full gzipped v86 state. Share pack = `~/` files only (much smaller).
+- Share always forks; it never mutates the source playground. Share creation does not require login.
+- Owner cloud save = full gzipped v86 state (signed-in only). Share pack = `~/` files only (works signed out).
 
 ## Data model
 
@@ -42,7 +42,7 @@ Server (Rust / axum)
 | `users` | `id`, `email` (unique), `created_at` |
 | `magic_tokens` | `token_hash`, `email`, `expires_at`, `used_at` — one-time login |
 | `sessions` | Play sessions: `id` (UUID, preserved from client when claimed), `user_id`, `name`, `template`, `created_at`, `updated_at`, `image` (v86 state id), `snapshot_path` (nullable until first cloud save), `snapshot_bytes`, `snapshot_saved_at` |
-| `shares` | `id` (public slug), `session_id`, `user_id`, `pack_path`, `created_at`, `expires_at` (nullable) |
+| `shares` | `id` (public slug), `source_session_id` (nullable client UUID for attribution), `user_id` (nullable — set only if creator was signed in), `pack_path`, `created_at`, `expires_at` (nullable) |
 | `exercise_progress` | `user_id`, `solved` (jsonb array of problem ids), `updated_at` |
 
 ### Disk (`NGODING_DATA_DIR`)
@@ -94,10 +94,11 @@ Today a new `build:image` makes older local saves obsolete because the client on
 
 ### Shares
 
-- Creating a share **requires sign-in** (session row must be owned by the cookie user). Forking does not.
-- `POST /api/play/sessions/:id/share` — client walks `~/` via `listDir`/`readFile`, uploads pack; returns `/s/<shareId>`. Does not require a prior full VM snapshot upload.
+- Creating and forking shares work **without sign-in**. No account binding means the share is only reachable via the link (and optional `expires_at`); it will not appear in a session list after a wipe unless the creator was signed in and `user_id` was set.
+- `POST /api/shares` — body: file pack (+ optional `name`, `source_session_id`). Client walks `~/` via `listDir`/`readFile` before upload. If a auth cookie is present, set `user_id`; otherwise leave it null. Does not require a prior full VM snapshot or a `sessions` row.
 - `GET /s/:shareId` — landing page with “Fork into my playground”
-- `POST /api/shares/:id/fork` — returns pack; client creates a new local session id and applies files after boot. Sign-in not required for fork.
+- `POST /api/shares/:id/fork` — returns pack; client creates a new local session id and applies files after boot.
+- Optional later: `GET /api/shares` for signed-in users to list shares they created while logged in. Not required for v1 fork UX.
 
 ### Exercise
 
@@ -123,7 +124,7 @@ Existing `POST /api/session` and `POST /api/grade` for grading stay as they are 
 ### UI (minimal)
 
 - Home: email sign-in; when signed in show email, cloud-backed vs local-only sessions, logout
-- Play toolbar: “Save to cloud” (when signed in), Share (copies `/s/<id>` after publish)
+- Play toolbar: Share always available (copies `/s/<id>` after publish); “Save to cloud” only when signed in
 - Persist status can distinguish local saved vs last cloud save
 
 ## Config
