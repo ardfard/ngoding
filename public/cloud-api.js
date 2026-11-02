@@ -48,3 +48,34 @@ export async function authRequest(email) {
 export async function authLogout() {
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
 }
+
+export async function listCloudSessions() {
+  const res = await fetch("/api/play/sessions", { credentials: "same-origin" });
+  if (!res.ok) return [];
+  const body = await parseJson(res);
+  return Array.isArray(body?.sessions) ? body.sessions : [];
+}
+
+export async function upsertPlaySession(session) {
+  const res = await fetch(`/api/play/sessions/${encodeURIComponent(session.id)}`, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: session.name,
+      template: session.template,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      image: session.image,
+    }),
+  });
+  return res.ok;
+}
+
+export async function deleteCloudSession(id) {
+  const res = await fetch(`/api/play/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  return res.ok || res.status === 404;
+}

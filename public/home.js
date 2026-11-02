@@ -1,8 +1,53 @@
-import { accountsAvailable, authLogout, authMe, authRequest } from "./cloud-api.js";
+import {
+  accountsAvailable,
+  authLogout,
+  authMe,
+  authRequest,
+  deleteCloudSession,
+  listCloudSessions,
+  upsertPlaySession,
+} from "./cloud-api.js";
 import { exerciseStats } from "./exercise-progress.js";
 import { LANGUAGES } from "./languages.js";
-import { createSession, listSessions, playSaveKey, removeSession, touchSession } from "./play-sessions.js";
+import {
+  createSession,
+  listSessions,
+  playSaveKey,
+  removeSession,
+  touchSession,
+  upsertLocalSession,
+} from "./play-sessions.js";
 import * as store from "./store.js";
+
+let signedInUser = null;
+
+async function pushLocalSessions() {
+  if (!signedInUser) return;
+  for (const s of listSessions()) {
+    try {
+      await upsertPlaySession(s);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
+async function pullCloudSessions() {
+  if (!signedInUser) return;
+  const remote = await listCloudSessions();
+  for (const r of remote) {
+    const local = listSessions().find((s) => s.id === r.id);
+    if (!local || (r.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
+      upsertLocalSession({
+        id: r.id,
+        name: r.name,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        template: r.template ?? "blank",
+      });
+    }
+  }
+}
 
 function $(id) {
   return document.getElementById(id);
@@ -45,6 +90,13 @@ function renderSessions() {
       e.stopPropagation();
       removeSession(s.id);
       await store.del(playSaveKey(s.id));
+      if (signedInUser) {
+        try {
+          await deleteCloudSession(s.id);
+        } catch (err) {
+          console.error(err);
+        }
+      }
       renderSessions();
     };
     li.append(open, del);
@@ -91,9 +143,16 @@ dialog.addEventListener("click", (e) => {
   if (card) setSelected(card.dataset.template);
 });
 
-form.addEventListener("submit", (e) => {
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const s = createSession(Date.now(), { template: selectedTemplate });
+  if (signedInUser) {
+    try {
+      await upsertPlaySession(s);
+    } catch (err) {
+      console.error(err);
+    }
+  }
   location.href = `/play?s=${encodeURIComponent(s.id)}`;
 });
 
@@ -123,11 +182,15 @@ async function initAccount() {
   const form = $("auth-form");
   const signedIn = $("auth-signed-in");
   const user = await authMe();
+  signedInUser = user;
   if (user) {
     form.hidden = true;
     signedIn.hidden = false;
     $("auth-email-label").textContent = user.email;
     $("auth-status").hidden = true;
+    await pushLocalSessions();
+    await pullCloudSessions();
+    renderSessions();
   } else {
     form.hidden = false;
     signedIn.hidden = true;

@@ -4,6 +4,7 @@ import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
 import { createFsSync } from "./fs-sync.js";
 import { languageFromPath, playgroundTemplate } from "./languages.js";
+import { authMe, upsertPlaySession } from "./cloud-api.js";
 import {
   LEGACY_PLAY_SAVE_KEY,
   getSession,
@@ -52,7 +53,11 @@ export async function startPlay(vm) {
     location.replace("/");
     return;
   }
-  touchSession(sessionId);
+  const touched = touchSession(sessionId);
+  const cloudUser = await authMe();
+  if (cloudUser && touched) {
+    upsertPlaySession(touched).catch((e) => console.error(e));
+  }
 
   let ready = "";
   let booted = false;
@@ -404,7 +409,10 @@ export async function startPlay(vm) {
 
   function onPersist(p) {
     persist = { phase: p.phase, savedAt: p.savedAt ?? persist.savedAt };
-    if (p.phase === "saved" && p.savedAt) touchSession(sessionId, p.savedAt);
+    if (p.phase === "saved" && p.savedAt) {
+      const t = touchSession(sessionId, p.savedAt);
+      if (cloudUser && t) upsertPlaySession(t).catch((e) => console.error(e));
+    }
     showPersist();
   }
 

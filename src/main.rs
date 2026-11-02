@@ -301,6 +301,8 @@ async fn main() -> std::io::Result<()> {
         .route("/api/auth/me", get(cloud::auth_me))
         .route("/api/auth/logout", post(cloud::auth_logout))
         .route("/auth/callback", get(cloud::auth_callback))
+        .route("/api/play/sessions", get(cloud::list_play_sessions))
+        .route("/api/play/sessions/{id}", axum::routing::put(cloud::upsert_play_session).delete(cloud::delete_play_session))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

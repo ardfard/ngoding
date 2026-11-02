@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
     Json,
@@ -14,7 +14,7 @@ use crate::auth::{
     hash_token, issue_magic_raw, sign_cookie, verify_cookie, COOKIE_NAME, COOKIE_TTL_SECS,
     MAGIC_TTL_SECS,
 };
-use crate::mail::{send_magic_link, MailConfig};
+use crate::mail::send_magic_link;
 use crate::AppState;
 
 fn unavailable() -> Response {
@@ -199,20 +199,166 @@ pub async fn auth_logout() -> Response {
     res
 }
 
-/// Shared helper for later cloud routes.
-#[allow(dead_code)]
 pub fn require_user(headers: &HeaderMap, secret: &str) -> Result<Uuid, Response> {
     cookie_user(headers, secret).ok_or_else(|| {
         json_ok(StatusCode::UNAUTHORIZED, json!({ "error": "unauthorized" }))
     })
 }
 
-#[allow(dead_code)]
 pub fn require_db(state: &AppState) -> Result<&PgPool, Response> {
     state.db.as_ref().ok_or_else(unavailable)
 }
 
-#[allow(dead_code)]
-pub fn mail_cfg(state: &AppState) -> &MailConfig {
-    &state.mail
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionBody {
+    name: String,
+    template: Option<String>,
+    created_at: i64,
+    updated_at: i64,
+    image: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct PlaySessionRow {
+    id: Uuid,
+    name: String,
+    template: Option<String>,
+    created_at: chrono::DateTime<Utc>,
+    updated_at: chrono::DateTime<Utc>,
+    image: Option<String>,
+    snapshot_path: Option<String>,
+    snapshot_saved_at: Option<chrono::DateTime<Utc>>,
+}
+
+fn session_json(row: &PlaySessionRow) -> Value {
+    json!({
+        "id": row.id,
+        "name": row.name,
+        "template": row.template,
+        "createdAt": row.created_at.timestamp_millis(),
+        "updatedAt": row.updated_at.timestamp_millis(),
+        "image": row.image,
+        "hasSnapshot": row.snapshot_path.is_some(),
+        "snapshotSavedAt": row.snapshot_saved_at.map(|t| t.timestamp_millis()),
+    })
+}
+
+fn millis_to_dt(ms: i64) -> chrono::DateTime<Utc> {
+    chrono::DateTime::from_timestamp_millis(ms).unwrap_or_else(Utc::now)
+}
+
+pub async fn list_play_sessions(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    match sqlx::query_as::<_, PlaySessionRow>(
+        "SELECT id, name, template, created_at, updated_at, image, snapshot_path, snapshot_saved_at \
+         FROM play_sessions WHERE user_id = $1 ORDER BY updated_at DESC",
+    )
+    .bind(uid)
+    .fetch_all(db)
+    .await
+    {
+        Ok(rows) => {
+            let sessions: Vec<Value> = rows.iter().map(session_json).collect();
+            json_ok(StatusCode::OK, json!({ "sessions": sessions }))
+        }
+        Err(e) => {
+            eprintln!("list_play_sessions: {e}");
+            json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }))
+        }
+    }
+}
+
+pub async fn upsert_play_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PlaySessionBody>,
+) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let created = millis_to_dt(body.created_at);
+    let updated = millis_to_dt(body.updated_at);
+    let result = sqlx::query(
+        "INSERT INTO play_sessions (id, user_id, name, template, created_at, updated_at, image) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         ON CONFLICT (id) DO UPDATE SET \
+           name = EXCLUDED.name, \
+           template = EXCLUDED.template, \
+           updated_at = EXCLUDED.updated_at, \
+           image = COALESCE(EXCLUDED.image, play_sessions.image) \
+         WHERE play_sessions.user_id = $2",
+    )
+    .bind(id)
+    .bind(uid)
+    .bind(&body.name)
+    .bind(&body.template)
+    .bind(created)
+    .bind(updated)
+    .bind(&body.image)
+    .execute(db)
+    .await;
+
+    match result {
+        Ok(r) if r.rows_affected() > 0 => json_ok(StatusCode::OK, json!({ "ok": true })),
+        Ok(_) => json_ok(StatusCode::FORBIDDEN, json!({ "error": "forbidden" })),
+        Err(e) => {
+            eprintln!("upsert_play_session: {e}");
+            json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }))
+        }
+    }
+}
+
+pub async fn delete_play_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let row = sqlx::query_as::<_, (Option<String>,)>(
+        "SELECT snapshot_path FROM play_sessions WHERE id = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(uid)
+    .fetch_optional(db)
+    .await;
+
+    let Ok(Some((snapshot_path,))) = row else {
+        return json_ok(StatusCode::NOT_FOUND, json!({ "error": "not found" }));
+    };
+
+    if let Err(e) = sqlx::query("DELETE FROM play_sessions WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(uid)
+        .execute(db)
+        .await
+    {
+        eprintln!("delete_play_session: {e}");
+        return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
+    }
+    if let Some(rel) = snapshot_path {
+        let path = state.data_dir.join(rel);
+        let _ = tokio::fs::remove_file(path).await;
+    }
+    json_ok(StatusCode::OK, json!({ "ok": true }))
 }

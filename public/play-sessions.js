@@ -76,6 +76,31 @@ export function removeSession(id) {
   return true;
 }
 
+/** Upsert session metadata from cloud (or local) without changing id. */
+export function upsertLocalSession(session) {
+  if (!isSession(session) && !(session && typeof session.id === "string" && typeof session.name === "string")) {
+    return null;
+  }
+  const normalized = {
+    id: session.id,
+    name: session.name,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    template: typeof session.template === "string" && session.template ? session.template : "blank",
+  };
+  if (!isSession(normalized)) return null;
+  const existing = readRaw();
+  const i = existing.findIndex((s) => s.id === normalized.id);
+  if (i < 0) {
+    writeRaw([...existing, normalized]);
+    return normalized;
+  }
+  const next = [...existing];
+  next[i] = normalized;
+  writeRaw(next);
+  return normalized;
+}
+
 export function migrateLegacyPlayMeta(hasLegacyBlob, now = Date.now()) {
   if (!hasLegacyBlob || readRaw().length > 0) return null;
   return createSession(now);
