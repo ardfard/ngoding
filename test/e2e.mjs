@@ -269,8 +269,8 @@ await screenIncludesOn(playPage, "$", 120_000).catch(async (e) => {
   throw e;
 });
 await playPage.waitForFunction(() => {
-  const t = document.getElementById("status")?.textContent ?? "";
-  return /· (unsaved|saving…|saved )/.test(t);
+  const t = document.querySelector("#status .vm-note")?.textContent ?? "";
+  return /^(unsaved|saving…|saved )/.test(t);
 }, null, { timeout: 30_000 })
   .then(
     () => expect("play shows VM persist status", true),

@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ngoding — Exercise</title>
+    <link rel="preload" href="/fonts/ibm-plex-mono-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ibm-plex-sans-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/exercise.js"></script>
   </head>
@@ -16,13 +18,8 @@
             <h1>ngoding</h1>
             <span class="brand-caret" aria-hidden="true"></span>
           </a>
-          <div class="chrome-status-actions">
-            <span class="status status-pill">
-              <span class="status-dot" aria-hidden="true"></span>
-              <span id="status">loading…</span>
-            </span>
-          </div>
         </div>
+        <div id="status" class="vm-status" data-state="busy" role="status"><span class="status-dot" aria-hidden="true"></span><span class="vm-state">loading…</span><span class="vm-boot"></span><span class="vm-note"></span></div>
       </header>
       <div class="problem-picker">
         <div class="picker-meta">

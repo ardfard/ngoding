@@ -1,49 +1,46 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatPersistStatus, persistPillClass } from "../public/vm-persist.js";
+import { bootLabel, persistLabel, persistTone } from "../public/vm-persist.js";
 
-describe("formatPersistStatus", () => {
+describe("persistLabel", () => {
   it("shows unsaved while dirty", () => {
-    assert.equal(
-      formatPersistStatus({ ready: "ready", phase: "dirty", savedAt: 1_700_000_000_000 }),
-      "ready · unsaved",
-    );
+    assert.equal(persistLabel({ phase: "dirty", savedAt: 1_700_000_000_000 }), "unsaved");
   });
 
   it("shows saving while a snapshot is in flight", () => {
-    assert.equal(
-      formatPersistStatus({ ready: "ready (restored)", phase: "saving", savedAt: null }),
-      "ready (restored) · saving…",
-    );
+    assert.equal(persistLabel({ phase: "saving", savedAt: null }), "saving…");
   });
 
   it("shows saved time after a successful snapshot", () => {
     const savedAt = Date.UTC(2026, 0, 15, 8, 5, 0);
-    const text = formatPersistStatus({ ready: "ready", phase: "saved", savedAt });
-    assert.match(text, /^ready · saved /);
+    assert.match(persistLabel({ phase: "saved", savedAt }), /^saved \d/);
   });
 
-  it("falls back to ready alone when idle with no save yet", () => {
-    assert.equal(
-      formatPersistStatus({ ready: "ready (1.2s)", phase: "idle", savedAt: null }),
-      "ready (1.2s)",
-    );
+  it("is empty when idle with no save yet", () => {
+    assert.equal(persistLabel({ phase: "idle", savedAt: null }), "");
   });
 
   it("reports save failures", () => {
-    assert.equal(
-      formatPersistStatus({ ready: "ready", phase: "error", savedAt: null }),
-      "ready · save failed",
-    );
+    assert.equal(persistLabel({ phase: "error", savedAt: null }), "save failed");
   });
 });
 
-describe("persistPillClass", () => {
-  it("maps phases to status-pill classes", () => {
-    assert.equal(persistPillClass("dirty"), "unsaved");
-    assert.equal(persistPillClass("saving"), "unsaved");
-    assert.equal(persistPillClass("error"), "error");
-    assert.equal(persistPillClass("saved"), "ready");
-    assert.equal(persistPillClass("idle"), "ready");
+describe("persistTone", () => {
+  it("maps phases to tones", () => {
+    assert.equal(persistTone("dirty"), "unsaved");
+    assert.equal(persistTone("saving"), "unsaved");
+    assert.equal(persistTone("error"), "error");
+    assert.equal(persistTone("saved"), "");
+    assert.equal(persistTone("idle"), "");
+  });
+});
+
+describe("bootLabel", () => {
+  it("says restored when resuming saved work", () => {
+    assert.equal(bootLabel({ restored: 1_700_000_000_000, ms: 900 }), "restored");
+  });
+
+  it("shows boot time in seconds", () => {
+    assert.equal(bootLabel({ restored: null, ms: 8_340 }), "8.3s");
   });
 });

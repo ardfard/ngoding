@@ -100,6 +100,12 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/vendor/v86/libv86.mjs" => "node_modules/v86/build/libv86.mjs",
     "/vendor/v86/v86.wasm" => "node_modules/v86/build/v86.wasm",
     "/vendor/v86/v86-fallback.wasm" => "node_modules/v86/build/v86-fallback.wasm",
+    // IBM Plex (OFL-1.1), Latin subset, from @fontsource.
+    "/fonts/ibm-plex-sans-400.woff2" => "node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2",
+    "/fonts/ibm-plex-sans-500.woff2" => "node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2",
+    "/fonts/ibm-plex-sans-600.woff2" => "node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2",
+    "/fonts/ibm-plex-mono-400.woff2" => "node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2",
+    "/fonts/ibm-plex-mono-600.woff2" => "node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2",
 };
 
 struct Embedded {
@@ -125,6 +131,7 @@ fn content_type(path: &Path) -> &'static str {
         Some("css") => "text/css; charset=utf-8",
         Some("json") => "application/json",
         Some("wasm") => "application/wasm",
+        Some("woff2") => "font/woff2",
         _ => "application/octet-stream",
     }
 }
@@ -371,5 +378,7 @@ mod tests {
         assert_eq!(content_type(EMBEDDED["/cloud-api.js"].path), "text/javascript; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/vendor/v86/v86.wasm"].path), "application/wasm");
         assert!(EMBEDDED["/vendor/v86/libv86.mjs"].body.len() > 100_000);
+        assert_eq!(content_type(EMBEDDED["/fonts/ibm-plex-mono-400.woff2"].path), "font/woff2");
+        assert!(EMBEDDED["/fonts/ibm-plex-sans-400.woff2"].body.starts_with(b"wOF2"));
     }
 }

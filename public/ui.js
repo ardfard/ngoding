@@ -18,7 +18,7 @@ import { createEditor } from "./editor.js";
 import { pickExerciseProblem } from "./exercise-progress.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 import * as store from "./store.js";
-import { formatPersistStatus, persistPillClass } from "./vm-persist.js";
+import { createVmStatus } from "./vm-persist.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -62,7 +62,7 @@ export async function startApp(vm) {
   }
   const solved = new Set(JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]"));
   let current = pickExerciseProblem(problems, solved) ?? problems[0];
-  let ready = "";
+  const status = createVmStatus($("status"));
   let booted = false;
   let problemFilter = "";
   let menuOpen = false;
@@ -73,11 +73,6 @@ export async function startApp(vm) {
       await store.put("vm:exercise", legacy);
       await store.del("vm:problems");
     }
-  }
-
-  function setStatus(text, cls = "") {
-    $("status").textContent = text;
-    $("status").parentElement.className = `status status-pill ${cls}`;
   }
 
   function setSidebarOpen(open) {
@@ -332,14 +327,9 @@ export async function startApp(vm) {
   };
   let persist = { phase: "idle", savedAt: null };
 
-  function showPersist() {
-    if (!ready) return;
-    setStatus(formatPersistStatus({ ready, ...persist }), persistPillClass(persist.phase));
-  }
-
   function onPersist(p) {
     persist = { phase: p.phase, savedAt: p.savedAt ?? persist.savedAt };
-    showPersist();
+    status.persist(persist);
   }
 
   async function flushBeforeLeave() {
@@ -364,7 +354,7 @@ export async function startApp(vm) {
         })
         .catch((err) => {
           console.error(err);
-          setStatus("could not save session", "error");
+          status.notice("could not save session", "error");
         });
     });
   }
@@ -373,7 +363,8 @@ export async function startApp(vm) {
   setEditorShare(editorShare);
   setLayout(layout);
 
-  await init();
+  // The terminal measures its cell size once, on open; do that with Plex Mono, not a fallback.
+  await Promise.all([init(), document.fonts.load('13px "IBM Plex Mono"').catch(() => {})]);
   const term = new Terminal({
     cursorBlink: true,
     convertEol: true,
@@ -388,13 +379,13 @@ export async function startApp(vm) {
 
   const t0 = performance.now();
   vm
-    .boot({ term, problems, inputs, session: token, saveKey: "vm:exercise", setStatus, onPersist })
+    .boot({ term, problems, inputs, session: token, saveKey: "vm:exercise", setStatus: status.progress, onPersist })
     .then(({ restored }) => {
-      ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       if (persist.phase === "idle" && restored) persist = { phase: "saved", savedAt: restored };
       if (vm.isSaving()) persist = { phase: "saving", savedAt: persist.savedAt };
       else if (vm.isDirty()) persist = { phase: "dirty", savedAt: persist.savedAt };
-      showPersist();
+      status.persist(persist);
+      status.ready({ restored, ms: performance.now() - t0 });
       $("check").disabled = false;
       $("editor-save").disabled = $("editor-run").disabled = false;
       booted = true;
@@ -404,7 +395,7 @@ export async function startApp(vm) {
     })
     .catch((e) => {
       console.error(e);
-      setStatus("boot failed", "error");
+      status.fail("boot failed");
       term.write(`\n\x1b[31mBoot failed: ${e.message ?? e}\x1b[0m\n`);
     });
 

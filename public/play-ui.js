@@ -15,7 +15,7 @@ import {
 import { applySharePackPlan, collectSharePack } from "./share-pack.js";
 import { resolvePlaySnapshot } from "./session-load.js";
 import * as store from "./store.js";
-import { formatPersistStatus, persistPillClass } from "./vm-persist.js";
+import { createVmStatus } from "./vm-persist.js";
 
 const $ = (id) => document.getElementById(id);
 const BUILD_KEY = "ngoding.play.build";
@@ -76,17 +76,12 @@ export async function startPlay(vm) {
     console.error(e);
   }
 
-  let ready = "";
+  const status = createVmStatus($("status"));
   let booted = false;
   /** @type {{ command: string, dir: string } | null} */
   let detectedBuild = null;
   // Non-empty only when the user explicitly set a build override (stored in localStorage).
   let buildUserOverride = localStorage.getItem(BUILD_KEY) ?? "";
-
-  function setStatus(text, cls = "") {
-    $("status").textContent = text;
-    $("status").parentElement.className = `status status-pill ${cls}`;
-  }
 
   function setSidebarOpen(open) {
     document.body.classList.toggle("sidebar-open", open);
@@ -146,7 +141,7 @@ export async function startPlay(vm) {
       renderConflict();
       await updateBuild();
     },
-    onStatus: (msg) => setStatus(msg, "error"),
+    onStatus: (msg) => status.notice(msg, "error"),
     onPathRemoved: (path) => editor.closePath(path),
     onRefresh: () => fsSync?.alignDirs(),
   });
@@ -374,16 +369,16 @@ export async function startPlay(vm) {
     $("cloud-save").onclick = async () => {
       if (!cloudUser) return;
       try {
-        setStatus("saving to cloud…");
+        status.progress("saving to cloud…");
         await vm.save();
         const local = await store.get(playSaveKey(sessionId));
         if (!local?.blob) throw new Error("nothing to upload");
         await upsertPlaySession(getSession(sessionId) ?? { id: sessionId, name: "Session", createdAt: Date.now(), updatedAt: Date.now(), template: "blank" });
         await uploadSnapshot(sessionId, local.blob, { image: local.image, savedAt: local.savedAt });
-        setStatus("saved to cloud", "ready");
+        status.notice("saved to cloud", "ok");
       } catch (e) {
         console.error(e);
-        setStatus(e.message || "cloud save failed", "error");
+        status.notice(e.message || "cloud save failed", "error");
       }
     };
   }
@@ -391,15 +386,15 @@ export async function startPlay(vm) {
   if ($("share-btn")) {
     $("share-btn").onclick = async () => {
       try {
-        setStatus("creating share…");
+        status.progress("creating share…");
         const { pack, skipped } = await collectSharePack(vm, { root: "/home/user" });
         const { url } = await createShare({ pack, sourceSessionId: sessionId });
         const absolute = new URL(url, location.origin).href;
         await navigator.clipboard.writeText(absolute);
-        setStatus(skipped ? `share link copied (${skipped} large files skipped)` : "share link copied", "ready");
+        status.notice(skipped ? `link copied (${skipped} large files skipped)` : "share link copied", "ok");
       } catch (e) {
         console.error(e);
-        setStatus(e.message || "share failed", "error");
+        status.notice(e.message || "share failed", "error");
       }
     };
   }
@@ -453,18 +448,13 @@ export async function startPlay(vm) {
 
   let persist = { phase: "idle", savedAt: null };
 
-  function showPersist() {
-    if (!ready) return;
-    setStatus(formatPersistStatus({ ready, ...persist }), persistPillClass(persist.phase));
-  }
-
   function onPersist(p) {
     persist = { phase: p.phase, savedAt: p.savedAt ?? persist.savedAt };
     if (p.phase === "saved" && p.savedAt) {
       const t = touchSession(sessionId, p.savedAt);
       if (cloudUser && t) upsertPlaySession(t).catch((e) => console.error(e));
     }
-    showPersist();
+    status.persist(persist);
   }
 
   async function flushBeforeLeave() {
@@ -489,7 +479,7 @@ export async function startPlay(vm) {
         })
         .catch((err) => {
           console.error(err);
-          setStatus("could not save session", "error");
+          status.notice("could not save session", "error");
         });
     });
   }
@@ -497,7 +487,8 @@ export async function startPlay(vm) {
   setEditorShare(editorShare);
   setLayout(layout);
 
-  await init();
+  // The terminal measures its cell size once, on open; do that with Plex Mono, not a fallback.
+  await Promise.all([init(), document.fonts.load('13px "IBM Plex Mono"').catch(() => {})]);
   const term = new Terminal({
     cursorBlink: true,
     convertEol: true,
@@ -518,16 +509,17 @@ export async function startPlay(vm) {
       inputs: {},
       session: sessionId,
       saveKey: playSaveKey(sessionId),
-      setStatus,
+      setStatus: status.progress,
       onPersist,
     })
     .then(async ({ restored }) => {
       await prepareWorkspace();
       const session = getSession(sessionId);
       const forkId = params.get("fork");
+      let forkError = "";
       if (forkId) {
         try {
-          setStatus("applying shared files…");
+          status.progress("applying shared files…");
           const { pack } = await forkShare(forkId);
           for (const f of applySharePackPlan(pack)) {
             const parts = f.path.split("/").filter(Boolean);
@@ -538,17 +530,18 @@ export async function startPlay(vm) {
           }
         } catch (e) {
           console.error(e);
-          setStatus(e.message || "fork apply failed", "error");
+          forkError = e.message || "fork apply failed";
         }
       } else if (!restored && session?.template && session.template !== "blank") {
         await seedTemplate(session.template);
       }
-      ready = restored ? "ready (restored)" : `ready (${((performance.now() - t0) / 1000).toFixed(1)}s)`;
       // onPersist may already have run during prepareWorkspace; only seed if silent.
       if (persist.phase === "idle" && restored) persist = { phase: "saved", savedAt: restored };
       if (vm.isSaving()) persist = { phase: "saving", savedAt: persist.savedAt };
       else if (vm.isDirty()) persist = { phase: "dirty", savedAt: persist.savedAt };
-      showPersist();
+      status.persist(persist);
+      status.ready({ restored, ms: performance.now() - t0 });
+      if (forkError) status.notice(forkError, "error");
       booted = true;
       for (const id of ["editor-save", "editor-run", "build-cmd", "tree-new-file", "tree-new-folder", "tree-rename", "tree-delete"]) {
         $(id).disabled = false;
@@ -560,7 +553,7 @@ export async function startPlay(vm) {
     })
     .catch((e) => {
       console.error(e);
-      setStatus("boot failed", "error");
+      status.fail("boot failed");
       term.write(`\n\x1b[31mBoot failed: ${e.message ?? e}\x1b[0m\n`);
     });
 

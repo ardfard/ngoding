@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ngoding — Play</title>
+    <link rel="preload" href="/fonts/ibm-plex-mono-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ibm-plex-sans-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/play.js"></script>
   </head>
@@ -17,15 +19,12 @@
             <span class="brand-caret" aria-hidden="true"></span>
           </a>
           <div class="chrome-status-actions">
-            <span class="status status-pill">
-              <span class="status-dot" aria-hidden="true"></span>
-              <span id="status">loading…</span>
-            </span>
             <button id="reset" class="icon-btn danger" type="button" title="Reset Play sandbox" aria-label="Reset Play sandbox">
               <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
             </button>
           </div>
         </div>
+        <div id="status" class="vm-status" data-state="busy" role="status"><span class="status-dot" aria-hidden="true"></span><span class="vm-state">loading…</span><span class="vm-boot"></span><span class="vm-note"></span></div>
       </header>
       <div id="tree-toolbar">
         <button type="button" id="tree-new-file" class="icon-btn" title="New file" aria-label="New file" disabled>

@@ -19,3 +19,7 @@ This product includes software developed by others:
   (https://github.com/replit/codemirror-vim), MIT License.
   Installed from npm, bundled into public/codemirror.js and served to browsers at
   runtime.
+
+- IBM Plex Sans and IBM Plex Mono (https://github.com/IBM/plex), SIL Open Font
+  License 1.1. Latin woff2 subsets installed from npm (@fontsource) and served
+  to browsers at /fonts/; see node_modules/@fontsource/ibm-plex-sans/LICENSE.
