@@ -73,7 +73,7 @@
         </div>
         <div class="toolbar-right">
           <button type="button" id="cloud-save" hidden title="Upload VM snapshot to your account">Save to cloud</button>
-          <button type="button" id="share-btn" title="Share a copy of ~/ files">Share</button>
+          <button type="button" id="share-btn" title="Share a read-only copy of ~/workspace">Share</button>
           <button type="button" id="vim-toggle" aria-pressed="false" title="Vim keybindings">
             <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 17l6-6-6-6M12 19h8"/></svg>
             Vim
@@ -114,5 +114,24 @@
       <div id="split" role="separator" aria-orientation="horizontal" aria-label="Resize editor and shell" tabindex="0"></div>
       <main id="terminal"></main>
     </div>
+    <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-title">
+      <div class="share-modal">
+        <div class="share-head">
+          <h2 id="share-title">Share playground</h2>
+          <button type="button" id="share-close" class="icon-btn" title="Close" aria-label="Close">
+            <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <p class="share-blurb">Anyone with this link sees a read-only copy of your ~/workspace files. They can fork it into their own playground.</p>
+        <div class="share-link-row">
+          <input id="share-link" type="text" readonly spellcheck="false" aria-label="Share link" />
+          <button type="button" id="share-copy" class="share-copy">
+            <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            Copy
+          </button>
+        </div>
+        <p id="share-note" class="share-note" role="status"></p>
+      </div>
+    </dialog>
   </body>
 </html>

@@ -85,7 +85,7 @@ Optional — without `DATABASE_URL`, local play/exercise still work; account API
 
 - **Sign in** (home): email magic link; cookie `ngoding_auth`.
 - **Save to cloud** (play, when signed in): uploads the full VM snapshot; open `/play?s=` restores from the server if IndexedDB is empty.
-- **Share**: publishes `~/` files to `/s/<id>` (no login required); recipients fork into a new local session.
+- **Share**: the Share button shows a link to a snapshot of `~/workspace` (no login required). `/s/<id>` opens it read-only in the editor, without booting the VM; **Fork to edit** copies it into a new local session.
 - Image builds keep prior `state-*.bin.zst` and merge `flat/` hashes so older saves keep booting.
 
 Starting a shell takes about 1 s and downloads about 18 MiB (mostly the snapshot).

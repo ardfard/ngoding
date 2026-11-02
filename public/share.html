@@ -3,22 +3,58 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ngoding — Fork share</title>
+    <title>ngoding — Shared playground</title>
+    <link rel="preload" href="/fonts/ibm-plex-mono-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ibm-plex-sans-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/share.js"></script>
   </head>
-  <body class="home">
-    <div class="home-shell">
-      <header class="home-top">
-        <a class="home-brand" href="/" aria-label="ngoding home">ngoding<span class="home-cursor" aria-hidden="true"></span></a>
+  <body class="play share-view">
+    <div id="sidebar-backdrop" hidden></div>
+    <aside id="sidebar">
+      <header class="chrome-header">
+        <div class="chrome-brand-row">
+          <a class="brand" href="/">
+            <h1>ngoding</h1>
+            <span class="brand-caret" aria-hidden="true"></span>
+          </a>
+        </div>
+        <div id="status" class="vm-status" data-state="busy" role="status"><span class="status-dot" aria-hidden="true"></span><span class="vm-state">loading share…</span><span class="vm-boot"></span><span class="vm-note"></span></div>
       </header>
-      <main class="share-main">
-        <h1 class="home-headline">Someone shared a playground with you.</h1>
-        <section class="home-panel" style="max-width:420px">
-          <p id="share-status" class="home-panel-blurb">Loading share…</p>
-          <button type="button" id="fork-btn" class="home-btn home-btn-primary" disabled>Fork into my playground</button>
-        </section>
-      </main>
+      <div id="tree"></div>
+      <p class="credits">
+        © 2026 ardfard ·
+        <a href="https://github.com/ardfard/ngoding/blob/main/LICENSE">Apache-2.0</a> ·
+        <a href="https://github.com/ardfard/ngoding">Fork me on GitHub</a>
+      </p>
+    </aside>
+    <div id="workspace" class="layout-editor">
+      <div id="toolbar">
+        <button type="button" id="sidebar-toggle" aria-expanded="false" aria-controls="sidebar">Files</button>
+        <div class="toolbar-left">
+          <span class="readonly-badge">
+            <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Read-only
+          </span>
+          <span class="readonly-note">Shared playground · fork it to edit and run</span>
+          <span class="toolbar-rule" aria-hidden="true"></span>
+          <span id="editor-lang" class="editor-lang"></span>
+          <span id="editor-status"></span>
+        </div>
+        <div class="toolbar-right">
+          <button type="button" id="fork-btn" class="btn-primary" title="Copy these files into a new playground session" disabled>
+            <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>
+            Fork to edit
+          </button>
+          <button type="button" id="vim-toggle" aria-pressed="false" title="Vim keybindings">
+            <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 17l6-6-6-6M12 19h8"/></svg>
+            Vim
+            <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
+          </button>
+        </div>
+      </div>
+      <div id="editor-tabs"></div>
+      <section id="editor"></section>
     </div>
   </body>
 </html>

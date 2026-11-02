@@ -384,18 +384,42 @@ export async function startPlay(vm) {
   }
 
   if ($("share-btn")) {
+    const shareNote = (text, tone = "") => {
+      $("share-note").textContent = text;
+      $("share-note").className = `share-note ${tone}`;
+    };
     $("share-btn").onclick = async () => {
+      $("share-btn").disabled = true;
       try {
         status.progress("creating share…");
-        const { pack, skipped } = await collectSharePack(vm, { root: "/home/user" });
+        const { pack, skipped } = await collectSharePack(vm, { root: WORKSPACE });
         const { url } = await createShare({ pack, sourceSessionId: sessionId });
-        const absolute = new URL(url, location.origin).href;
-        await navigator.clipboard.writeText(absolute);
-        status.notice(skipped ? `link copied (${skipped} large files skipped)` : "share link copied", "ok");
+        $("share-link").value = new URL(url, location.origin).href;
+        const n = pack.files.length;
+        shareNote(`Snapshot of ${n} file${n === 1 ? "" : "s"}${skipped ? `, ${skipped} large skipped` : ""}. Later edits aren't included.`);
+        status.notice("share link ready", "ok");
+        $("share-dialog").showModal();
+        $("share-link").select();
       } catch (e) {
         console.error(e);
         status.notice(e.message || "share failed", "error");
+      } finally {
+        $("share-btn").disabled = false;
       }
+    };
+    $("share-copy").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText($("share-link").value);
+        shareNote("Link copied.", "ok");
+      } catch {
+        $("share-link").select();
+        shareNote("Couldn't copy. Press Ctrl-C to copy the selected link.", "error");
+      }
+    };
+    $("share-link").onfocus = () => $("share-link").select();
+    $("share-close").onclick = () => $("share-dialog").close();
+    $("share-dialog").onclick = (e) => {
+      if (e.target === $("share-dialog")) $("share-dialog").close();
     };
   }
   $("editor-save").onclick = () => editor.save();
@@ -528,6 +552,9 @@ export async function startPlay(vm) {
             }
             await vm.writeFile(f.path, f.text);
           }
+          // Applied once; a reload must not overwrite edits with the share again.
+          params.delete("fork");
+          history.replaceState(null, "", `${location.pathname}?${params}`);
         } catch (e) {
           console.error(e);
           forkError = e.message || "fork apply failed";

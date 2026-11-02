@@ -77,9 +77,10 @@ function modeFor(lang) {
   }
 }
 
-// ctx: { parent, vm, onStatus(text, cls), onConflictChange, vim, language }. Call open(problem) to
-// show a problem's file; until then (and while the VM boots) the editor is read-only.
-export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChange, vim: vimOn = false, language: languageId = "python" }) {
+// ctx: { parent, vm, onStatus(text, cls), onConflictChange, vim, language, readOnly }. Call open(problem) to
+// show a problem's file; until then (and while the VM boots) the editor is read-only. With
+// readOnly every file stays read-only and save/run do nothing (shared-link viewer).
+export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChange, vim: vimOn = false, language: languageId = "python", readOnly: viewOnly = false }) {
   // path -> { state, saved, template }: one buffer per file, so switching
   // problems or languages keeps unsaved edits. saved is the text in the VM, or
   // null if the file doesn't exist yet.
@@ -112,7 +113,7 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
         ])),
         theme,
         syntaxHighlighting(highlight),
-        EditorState.readOnly.of(readOnly),
+        EditorState.readOnly.of(readOnly || viewOnly),
         EditorView.updateListener.of((u) => {
           if (!u.docChanged) return;
           report();
@@ -132,6 +133,7 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
 
   function report(note) {
     if (!current) return onStatus("", "");
+    if (viewOnly) return onStatus(`${home(current.path)} · read-only`, "");
     const dirty = isDirty(current.path);
     const state = note ?? (dirty ? "modified" : files.get(current.path).saved === null ? "new file, not saved yet" : "saved");
     onStatus(`${home(current.path)} · ${state}`, dirty ? "dirty" : "");
@@ -316,7 +318,7 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
   }
 
   async function save() {
-    if (!current) return false;
+    if (!current || viewOnly) return false;
     const { path } = current;
     const text = view.state.doc.toString();
     report("saving…");
