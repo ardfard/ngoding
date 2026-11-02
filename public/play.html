@@ -133,5 +133,21 @@
         <p id="share-note" class="share-note" role="status"></p>
       </div>
     </dialog>
+    <dialog id="signin-dialog" class="share-dialog" aria-labelledby="signin-title">
+      <form id="signin-form" class="share-modal">
+        <div class="share-head">
+          <h2 id="signin-title">Sign in to save</h2>
+          <button type="button" id="signin-close" class="icon-btn" title="Close" aria-label="Close">
+            <svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <p class="share-blurb">You need an account to save to the cloud. Cloud saves keep this playground's VM snapshot on your account, so you can open it on another browser or device. We'll email you a sign-in link; no password needed.</p>
+        <div class="share-link-row">
+          <input id="signin-email" type="email" required placeholder="you@example.com" autocomplete="email" aria-label="Email" />
+          <button type="submit" id="signin-submit" class="share-copy">Send link</button>
+        </div>
+        <p id="signin-note" class="share-note" role="status"></p>
+      </form>
+    </dialog>
   </body>
 </html>

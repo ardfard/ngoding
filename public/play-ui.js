@@ -4,7 +4,7 @@ import { createEditor } from "./editor.js";
 import { createFileTree } from "./file-tree.js";
 import { createFsSync } from "./fs-sync.js";
 import { languageFromPath, playgroundTemplate } from "./languages.js";
-import { authMe, createShare, downloadSnapshot, forkShare, uploadSnapshot, upsertPlaySession } from "./cloud-api.js";
+import { accountsAvailable, authMe, authRequest, createShare, downloadSnapshot, forkShare, uploadSnapshot, upsertPlaySession } from "./cloud-api.js";
 import {
   LEGACY_PLAY_SAVE_KEY,
   getSession,
@@ -56,11 +56,12 @@ export async function startPlay(vm) {
     return;
   }
   const touched = touchSession(sessionId);
-  const cloudUser = await authMe();
+  let cloudUser = await authMe();
   if (cloudUser && touched) {
     upsertPlaySession(touched).catch((e) => console.error(e));
   }
-  if ($("cloud-save")) $("cloud-save").hidden = !cloudUser;
+  // Signed-out users still see the button; clicking it asks them to sign in.
+  if ($("cloud-save")) $("cloud-save").hidden = !cloudUser && !(await accountsAvailable());
 
   try {
     const resolved = await resolvePlaySnapshot({
@@ -366,8 +367,19 @@ export async function startPlay(vm) {
   $("reset").onclick = reset;
 
   if ($("cloud-save")) {
+    const signinNote = (text, tone = "") => {
+      $("signin-note").textContent = text;
+      $("signin-note").className = `share-note ${tone}`;
+    };
     $("cloud-save").onclick = async () => {
-      if (!cloudUser) return;
+      // They may have signed in from another tab since this page loaded.
+      if (!cloudUser) cloudUser = await authMe();
+      if (!cloudUser) {
+        signinNote("");
+        $("signin-dialog").showModal();
+        $("signin-email").focus();
+        return;
+      }
       try {
         status.progress("saving to cloud…");
         await vm.save();
@@ -380,6 +392,31 @@ export async function startPlay(vm) {
         console.error(e);
         status.notice(e.message || "cloud save failed", "error");
       }
+    };
+    $("signin-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const email = $("signin-email").value.trim();
+      $("signin-submit").disabled = true;
+      try {
+        const body = await authRequest(email, location.pathname + location.search);
+        signinNote(`Check ${email} for a sign-in link. It brings you back here to save.`, "ok");
+        if (body?.devLink) {
+          const a = document.createElement("a");
+          a.href = body.devLink;
+          a.target = "_blank";
+          a.textContent = "Open the dev sign-in link.";
+          $("signin-note").append(" ", a);
+        }
+      } catch (err) {
+        console.error(err);
+        signinNote(err.message || "Could not send sign-in link", "error");
+      } finally {
+        $("signin-submit").disabled = false;
+      }
+    };
+    $("signin-close").onclick = () => $("signin-dialog").close();
+    $("signin-dialog").onclick = (e) => {
+      if (e.target === $("signin-dialog")) $("signin-dialog").close();
     };
   }
 

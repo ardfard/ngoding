@@ -31,12 +31,13 @@ export async function accountsAvailable() {
   }
 }
 
-export async function authRequest(email) {
+/** @param {string} [next] same-origin path to land on after the link is opened */
+export async function authRequest(email, next) {
   const res = await fetch("/api/auth/request", {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, next }),
   });
   const body = await parseJson(res);
   if (!res.ok) {

@@ -550,6 +550,8 @@ aside#sidebar > .credits {
   overflow: visible;
 }
 
+#toolbar button[hidden] { display: none; }
+
 #toolbar button {
   display: inline-flex;
   align-items: center;
@@ -1709,7 +1711,8 @@ body.home {
   gap: 8px;
 }
 
-#share-link {
+#share-link,
+#signin-email {
   flex: 1;
   min-width: 0;
   height: 32px;
@@ -1722,7 +1725,8 @@ body.home {
   outline: none;
 }
 
-#share-link:focus { border-color: var(--muted); }
+#share-link:focus,
+#signin-email:focus { border-color: var(--muted); }
 
 .share-copy {
   display: inline-flex;

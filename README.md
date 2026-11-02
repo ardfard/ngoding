@@ -83,8 +83,8 @@ Optional — without `DATABASE_URL`, local play/exercise still work; account API
 | `NGODING_DEV_AUTH` | If set and SMTP unset, log/return the magic link for local testing |
 | `NGODING_PUBLIC_URL` | Base URL for magic links; an `https://` URL also marks the auth cookie `Secure` (default: the request's `Host`) |
 
-- **Sign in** (home): email magic link; cookie `ngoding_auth`.
-- **Save to cloud** (play, when signed in): uploads the full VM snapshot; open `/play?s=` restores from the server if IndexedDB is empty.
+- **Sign in** (home, or the Save to cloud dialog on play): email magic link; cookie `ngoding_auth`. The link can carry a same-origin `next` path to land on after sign-in.
+- **Save to cloud** (play): uploads the full VM snapshot; open `/play?s=` restores from the server if IndexedDB is empty. Signed out, it asks you to sign in first.
 - **Share**: the Share button shows a link to a snapshot of `~/workspace` (no login required). `/s/<id>` opens it read-only in the editor, without booting the VM; **Fork to edit** copies it into a new local session.
 - Image builds keep prior `state-*.bin.zst` and merge `flat/` hashes so older saves keep booting.
 

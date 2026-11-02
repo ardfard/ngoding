@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use chrono::{Duration, Utc};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
@@ -66,6 +67,17 @@ fn clear_auth_cookie(state: &AppState) -> String {
 #[derive(Deserialize)]
 pub struct AuthRequestBody {
     email: String,
+    next: Option<String>,
+}
+
+// Where to land after sign-in. Only same-origin paths, so the link can't become an
+// open redirect; browsers read `/\` like `//`, hence the backslash check.
+fn safe_next(next: Option<&str>) -> Option<&str> {
+    let next = next?;
+    let ok = next.starts_with('/')
+        && !next.starts_with("//")
+        && next.bytes().all(|b| b.is_ascii_graphic() && b != b'\\');
+    ok.then_some(next)
 }
 
 // The cookie lands on whatever origin the link points at, so without a configured
@@ -108,7 +120,11 @@ pub async fn auth_request(
         eprintln!("magic token insert: {e}");
         return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
     }
-    let link = format!("{}/auth/callback?token={raw}", link_origin(&state, &headers));
+    let mut link = format!("{}/auth/callback?token={raw}", link_origin(&state, &headers));
+    if let Some(next) = safe_next(body.next.as_deref()) {
+        link.push_str("&next=");
+        link.extend(utf8_percent_encode(next, NON_ALPHANUMERIC));
+    }
     match send_magic_link(&state.mail, &email, &link).await {
         Ok(()) => {
             let mut payload = json!({ "ok": true });
@@ -124,6 +140,7 @@ pub async fn auth_request(
 #[derive(Deserialize)]
 pub struct CallbackQuery {
     token: Option<String>,
+    next: Option<String>,
 }
 
 pub async fn auth_callback(State(state): State<AppState>, Query(q): Query<CallbackQuery>) -> Response {
@@ -169,7 +186,7 @@ pub async fn auth_callback(State(state): State<AppState>, Query(q): Query<Callba
         }
     };
 
-    let mut res = Redirect::temporary("/").into_response();
+    let mut res = Redirect::temporary(safe_next(q.next.as_deref()).unwrap_or("/")).into_response();
     res.headers_mut().insert(
         header::SET_COOKIE,
         set_auth_cookie(&state, user_id).parse().unwrap(),
@@ -652,4 +669,19 @@ pub async fn fork_share(State(state): State<AppState>, Path(id): Path<String>) -
         Err(_) => return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "bad pack" })),
     };
     json_ok(StatusCode::OK, json!({ "pack": pack }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::safe_next;
+
+    #[test]
+    fn next_must_be_a_same_origin_path() {
+        assert_eq!(safe_next(Some("/play?s=abc")), Some("/play?s=abc"));
+        assert_eq!(safe_next(Some("/")), Some("/"));
+        for bad in ["//evil.com", "/\\evil.com", "https://evil.com", "play", "/a b", "/\nx", ""] {
+            assert_eq!(safe_next(Some(bad)), None, "{bad:?}");
+        }
+        assert_eq!(safe_next(None), None);
+    }
 }
