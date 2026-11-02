@@ -12,6 +12,18 @@
       <header class="home-hero">
         <h1 class="home-brand">ngoding</h1>
         <p class="home-tagline">Coding exercises in an in-browser Linux sandbox.</p>
+        <div id="account" class="home-account" hidden>
+          <form id="auth-form" class="home-auth-form">
+            <label class="sr-only" for="auth-email">Email</label>
+            <input id="auth-email" type="email" required placeholder="you@example.com" autocomplete="email" />
+            <button type="submit" class="home-btn home-btn-secondary">Sign in</button>
+          </form>
+          <p id="auth-status" class="home-auth-status" hidden></p>
+          <div id="auth-signed-in" hidden>
+            <span id="auth-email-label"></span>
+            <button type="button" id="auth-logout" class="home-btn home-btn-secondary">Log out</button>
+          </div>
+        </div>
       </header>
       <div class="home-panels">
         <section class="home-panel" id="playground-panel" aria-labelledby="playground-heading">

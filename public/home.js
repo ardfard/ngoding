@@ -1,3 +1,4 @@
+import { accountsAvailable, authLogout, authMe, authRequest } from "./cloud-api.js";
 import { exerciseStats } from "./exercise-progress.js";
 import { LANGUAGES } from "./languages.js";
 import { createSession, listSessions, playSaveKey, removeSession, touchSession } from "./play-sessions.js";
@@ -105,7 +106,58 @@ $("new-session").onclick = () => {
 
 renderSessions();
 
+function showAuthStatus(html, { asHtml = false } = {}) {
+  const el = $("auth-status");
+  el.hidden = false;
+  if (asHtml) el.innerHTML = html;
+  else el.textContent = html;
+}
+
+async function initAccount() {
+  const account = $("account");
+  if (!(await accountsAvailable())) {
+    account.hidden = true;
+    return;
+  }
+  account.hidden = false;
+  const form = $("auth-form");
+  const signedIn = $("auth-signed-in");
+  const user = await authMe();
+  if (user) {
+    form.hidden = true;
+    signedIn.hidden = false;
+    $("auth-email-label").textContent = user.email;
+    $("auth-status").hidden = true;
+  } else {
+    form.hidden = false;
+    signedIn.hidden = true;
+  }
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const email = $("auth-email").value.trim();
+    try {
+      const body = await authRequest(email);
+      if (body.devLink) {
+        showAuthStatus(
+          `Check your email — or <a href="${body.devLink}">open the dev sign-in link</a>.`,
+          { asHtml: true },
+        );
+      } else {
+        showAuthStatus("Check your email for a sign-in link.");
+      }
+    } catch (err) {
+      console.error(err);
+      showAuthStatus(err.message || "Could not send sign-in link");
+    }
+  };
+  $("auth-logout").onclick = async () => {
+    await authLogout();
+    location.reload();
+  };
+}
+
 (async () => {
+  initAccount().catch((e) => console.error(e));
   const statsEl = $("exercise-stats");
   const cta = $("start-exercise");
   try {

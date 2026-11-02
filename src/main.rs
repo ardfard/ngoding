@@ -63,6 +63,7 @@ macro_rules! embed {
 const APP: &[(&str, &str, &[u8])] = embed! {
     "/" => "public/index.html",
     "/home.js" => "public/home.js",
+    "/cloud-api.js" => "public/cloud-api.js",
     "/play-sessions.js" => "public/play-sessions.js",
     "/exercise-progress.js" => "public/exercise-progress.js",
     "/play" => "public/play.html",
@@ -334,6 +335,7 @@ mod tests {
         assert_eq!(content_type(EMBEDDED["/"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/exercise"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/play"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/cloud-api.js"].path), "text/javascript; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/vendor/v86/v86.wasm"].path), "application/wasm");
         assert!(EMBEDDED["/vendor/v86/libv86.mjs"].body.len() > 100_000);
     }
