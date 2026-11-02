@@ -1,3 +1,7 @@
+export function unionSolved(a, b) {
+  return [...new Set([...(a ?? []), ...(b ?? [])])];
+}
+
 export function exerciseStats(problems, solvedIds) {
   const solved = new Set(solvedIds);
   let done = 0;

@@ -97,6 +97,23 @@ export async function uploadSnapshot(id, blob, { image, savedAt } = {}) {
   return parseJson(res);
 }
 
+export async function getExerciseProgress() {
+  const res = await fetch("/api/exercise/progress", { credentials: "same-origin" });
+  if (!res.ok) return null;
+  const body = await parseJson(res);
+  return Array.isArray(body?.solved) ? body.solved : [];
+}
+
+export async function putExerciseProgress(solved) {
+  const res = await fetch("/api/exercise/progress", {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ solved }),
+  });
+  return res.ok;
+}
+
 export async function createShare({ pack, sourceSessionId, name } = {}) {
   const res = await fetch("/api/shares", {
     method: "POST",

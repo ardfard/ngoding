@@ -546,6 +546,67 @@ pub async fn create_share(
     )
 }
 
+#[derive(Deserialize)]
+pub struct ProgressBody {
+    solved: Vec<String>,
+}
+
+pub async fn get_exercise_progress(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    match sqlx::query_as::<_, (serde_json::Value,)>(
+        "SELECT solved FROM exercise_progress WHERE user_id = $1",
+    )
+    .bind(uid)
+    .fetch_optional(db)
+    .await
+    {
+        Ok(Some((solved,))) => json_ok(StatusCode::OK, json!({ "solved": solved })),
+        Ok(None) => json_ok(StatusCode::OK, json!({ "solved": [] })),
+        Err(e) => {
+            eprintln!("get_exercise_progress: {e}");
+            json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }))
+        }
+    }
+}
+
+pub async fn put_exercise_progress(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<ProgressBody>,
+) -> Response {
+    let db = match require_db(&state) {
+        Ok(db) => db,
+        Err(r) => return r,
+    };
+    let uid = match require_user(&headers, &state.secret) {
+        Ok(u) => u,
+        Err(r) => return r,
+    };
+    let solved = serde_json::to_value(&body.solved).unwrap_or_else(|_| json!([]));
+    match sqlx::query(
+        "INSERT INTO exercise_progress (user_id, solved, updated_at) VALUES ($1, $2, now()) \
+         ON CONFLICT (user_id) DO UPDATE SET solved = EXCLUDED.solved, updated_at = now()",
+    )
+    .bind(uid)
+    .bind(solved)
+    .execute(db)
+    .await
+    {
+        Ok(_) => json_ok(StatusCode::OK, json!({ "ok": true })),
+        Err(e) => {
+            eprintln!("put_exercise_progress: {e}");
+            json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }))
+        }
+    }
+}
+
 pub async fn fork_share(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let db = match require_db(&state) {
         Ok(db) => db,

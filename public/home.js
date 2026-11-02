@@ -4,10 +4,12 @@ import {
   authMe,
   authRequest,
   deleteCloudSession,
+  getExerciseProgress,
   listCloudSessions,
+  putExerciseProgress,
   upsertPlaySession,
 } from "./cloud-api.js";
-import { exerciseStats } from "./exercise-progress.js";
+import { exerciseStats, unionSolved } from "./exercise-progress.js";
 import { LANGUAGES } from "./languages.js";
 import {
   createSession,
@@ -191,6 +193,15 @@ async function initAccount() {
     await pushLocalSessions();
     await pullCloudSessions();
     renderSessions();
+    try {
+      const local = JSON.parse(localStorage.getItem("ngoding.solved") ?? "[]");
+      const remote = (await getExerciseProgress()) ?? [];
+      const merged = unionSolved(local, remote);
+      localStorage.setItem("ngoding.solved", JSON.stringify(merged));
+      await putExerciseProgress(merged);
+    } catch (e) {
+      console.error(e);
+    }
   } else {
     form.hidden = false;
     signedIn.hidden = true;

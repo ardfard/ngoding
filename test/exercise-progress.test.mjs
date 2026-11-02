@@ -1,8 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { exerciseStats, pickExerciseProblem } from "../public/exercise-progress.js";
+import { exerciseStats, pickExerciseProblem, unionSolved } from "../public/exercise-progress.js";
 
 const probs = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+describe("unionSolved", () => {
+  it("unions and dedupes", () => {
+    assert.deepEqual(unionSolved(["a"], ["a", "b"]).sort(), ["a", "b"]);
+  });
+});
 
 describe("exerciseStats", () => {
   it("counts done and not yet", () => {

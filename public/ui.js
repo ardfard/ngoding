@@ -13,6 +13,7 @@
 // so expected answers never reach the browser.
 
 import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
+import { putExerciseProgress } from "./cloud-api.js";
 import { createEditor } from "./editor.js";
 import { pickExerciseProblem } from "./exercise-progress.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
@@ -158,7 +159,9 @@ export async function startApp(vm) {
       $("result").textContent = (result.ok ? "✓ " : "✗ ") + result.message;
       if (result.ok) {
         solved.add(p.id);
-        localStorage.setItem("ngoding.solved", JSON.stringify([...solved]));
+        const list = [...solved];
+        localStorage.setItem("ngoding.solved", JSON.stringify(list));
+        putExerciseProgress(list).catch((err) => console.error(err));
         renderProblem();
       }
     } catch (e) {

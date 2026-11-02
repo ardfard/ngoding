@@ -327,6 +327,10 @@ async fn main() -> std::io::Result<()> {
         )
         .route("/api/shares", post(cloud::create_share))
         .route("/api/shares/{id}/fork", post(cloud::fork_share))
+        .route(
+            "/api/exercise/progress",
+            get(cloud::get_exercise_progress).put(cloud::put_exercise_progress),
+        )
         .route("/s/{id}", get(share_landing))
         .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
         .with_state(state);
