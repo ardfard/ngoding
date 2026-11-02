@@ -49,7 +49,8 @@ pub(crate) struct AppState {
     pub(crate) db: Option<PgPool>,
     pub(crate) data_dir: PathBuf,
     pub(crate) mail: MailConfig,
-    pub(crate) public_url: String,
+    /// NGODING_PUBLIC_URL. Unset in local dev, where links follow the request's Host.
+    pub(crate) public_url: Option<String>,
 }
 
 // URL path -> file, relative to the repo root. Only these are embedded. Run
@@ -291,7 +292,7 @@ async fn main() -> std::io::Result<()> {
     let data_dir = data_dir();
     ensure_data_dirs(&data_dir)?;
     let mail = MailConfig::from_env();
-    let public_url = std::env::var("NGODING_PUBLIC_URL").unwrap_or_else(|_| format!("http://localhost:{port}"));
+    let public_url = std::env::var("NGODING_PUBLIC_URL").ok().filter(|s| !s.is_empty());
     let db = match connect_db().await {
         Ok(pool) => {
             if pool.is_none() {

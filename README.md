@@ -81,7 +81,7 @@ Optional — without `DATABASE_URL`, local play/exercise still work; account API
 | `NGODING_DATA_DIR` | Snapshot/share files on disk (default `./data`) |
 | `SMTP_URL` / `SMTP_FROM` | Magic-link email (any SMTP, including Resend) |
 | `NGODING_DEV_AUTH` | If set and SMTP unset, log/return the magic link for local testing |
-| `NGODING_PUBLIC_URL` | Base URL for magic links (default `http://localhost:$PORT`) |
+| `NGODING_PUBLIC_URL` | Base URL for magic links; an `https://` URL also marks the auth cookie `Secure` (default: the request's `Host`) |
 
 - **Sign in** (home): email magic link; cookie `ngoding_auth`.
 - **Save to cloud** (play, when signed in): uploads the full VM snapshot; open `/play?s=` restores from the server if IndexedDB is empty.

@@ -48,14 +48,19 @@ fn cookie_user(headers: &HeaderMap, secret: &str) -> Option<Uuid> {
     None
 }
 
-fn set_auth_cookie(user_id: Uuid, secret: &str) -> String {
-    let exp = Utc::now().timestamp() + COOKIE_TTL_SECS;
-    let value = sign_cookie(user_id, exp, secret.as_bytes());
-    format!("{COOKIE_NAME}={value}; HttpOnly; Path=/; SameSite=Lax; Max-Age={COOKIE_TTL_SECS}")
+fn cookie_attrs(state: &AppState) -> &'static str {
+    let https = state.public_url.as_deref().is_some_and(|u| u.starts_with("https://"));
+    if https { "HttpOnly; Path=/; SameSite=Lax; Secure" } else { "HttpOnly; Path=/; SameSite=Lax" }
 }
 
-fn clear_auth_cookie() -> String {
-    format!("{COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0")
+fn set_auth_cookie(state: &AppState, user_id: Uuid) -> String {
+    let exp = Utc::now().timestamp() + COOKIE_TTL_SECS;
+    let value = sign_cookie(user_id, exp, state.secret.as_bytes());
+    format!("{COOKIE_NAME}={value}; {}; Max-Age={COOKIE_TTL_SECS}", cookie_attrs(state))
+}
+
+fn clear_auth_cookie(state: &AppState) -> String {
+    format!("{COOKIE_NAME}=; {}; Max-Age=0", cookie_attrs(state))
 }
 
 #[derive(Deserialize)]
@@ -63,7 +68,24 @@ pub struct AuthRequestBody {
     email: String,
 }
 
-pub async fn auth_request(State(state): State<AppState>, Json(body): Json<AuthRequestBody>) -> Response {
+// The cookie lands on whatever origin the link points at, so without a configured
+// public URL the link must go back to the host the user is actually browsing.
+fn link_origin(state: &AppState, headers: &HeaderMap) -> String {
+    if let Some(url) = &state.public_url {
+        return url.trim_end_matches('/').to_string();
+    }
+    let host = headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost");
+    format!("http://{host}")
+}
+
+pub async fn auth_request(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<AuthRequestBody>,
+) -> Response {
     let Some(db) = state.db.as_ref() else {
         return unavailable();
     };
@@ -86,11 +108,7 @@ pub async fn auth_request(State(state): State<AppState>, Json(body): Json<AuthRe
         eprintln!("magic token insert: {e}");
         return json_ok(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "server error" }));
     }
-    let link = format!(
-        "{}/auth/callback?token={}",
-        state.public_url.trim_end_matches('/'),
-        raw
-    );
+    let link = format!("{}/auth/callback?token={raw}", link_origin(&state, &headers));
     match send_magic_link(&state.mail, &email, &link).await {
         Ok(()) => {
             let mut payload = json!({ "ok": true });
@@ -116,28 +134,32 @@ pub async fn auth_callback(State(state): State<AppState>, Query(q): Query<Callba
         return Redirect::temporary("/?auth=missing").into_response();
     };
     let token_hash = hash_token(&raw);
-    let row = sqlx::query_as::<_, (String, Option<chrono::DateTime<Utc>>)>(
-        "SELECT email, used_at FROM magic_tokens WHERE token_hash = $1 AND expires_at > now()",
+    // Claim the token in one statement so two concurrent clicks can't both sign in.
+    let claimed = sqlx::query_as::<_, (String,)>(
+        "UPDATE magic_tokens SET used_at = now()
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+         RETURNING email",
     )
     .bind(&token_hash)
     .fetch_optional(db)
     .await;
-
-    let Ok(Some((email, used_at))) = row else {
-        return Redirect::temporary("/?auth=invalid").into_response();
+    let email = match claimed {
+        Ok(Some((email,))) => email,
+        Ok(None) => {
+            let used = sqlx::query_as::<_, (bool,)>(
+                "SELECT used_at IS NOT NULL FROM magic_tokens WHERE token_hash = $1 AND expires_at > now()",
+            )
+            .bind(&token_hash)
+            .fetch_optional(db)
+            .await;
+            let reason = if matches!(used, Ok(Some((true,)))) { "used" } else { "invalid" };
+            return Redirect::temporary(&format!("/?auth={reason}")).into_response();
+        }
+        Err(e) => {
+            eprintln!("magic token use: {e}");
+            return Redirect::temporary("/?auth=error").into_response();
+        }
     };
-    if used_at.is_some() {
-        return Redirect::temporary("/?auth=used").into_response();
-    }
-
-    if let Err(e) = sqlx::query("UPDATE magic_tokens SET used_at = now() WHERE token_hash = $1")
-        .bind(&token_hash)
-        .execute(db)
-        .await
-    {
-        eprintln!("magic token use: {e}");
-        return Redirect::temporary("/?auth=error").into_response();
-    }
 
     let user_id = match upsert_user(db, &email).await {
         Ok(id) => id,
@@ -150,25 +172,22 @@ pub async fn auth_callback(State(state): State<AppState>, Query(q): Query<Callba
     let mut res = Redirect::temporary("/").into_response();
     res.headers_mut().insert(
         header::SET_COOKIE,
-        set_auth_cookie(user_id, &state.secret).parse().unwrap(),
+        set_auth_cookie(&state, user_id).parse().unwrap(),
     );
     res
 }
 
+// A first sign-in from two tabs at once must not fail on the unique email.
 async fn upsert_user(db: &PgPool, email: &str) -> Result<Uuid, sqlx::Error> {
-    if let Some((id,)) = sqlx::query_as::<_, (Uuid,)>("SELECT id FROM users WHERE email = $1")
-        .bind(email)
-        .fetch_optional(db)
-        .await?
-    {
-        return Ok(id);
-    }
-    let id = Uuid::new_v4();
-    sqlx::query("INSERT INTO users (id, email) VALUES ($1, $2)")
-        .bind(id)
-        .bind(email)
-        .execute(db)
-        .await?;
+    let (id,) = sqlx::query_as::<_, (Uuid,)>(
+        "INSERT INTO users (id, email) VALUES ($1, $2)
+         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+         RETURNING id",
+    )
+    .bind(Uuid::new_v4())
+    .bind(email)
+    .fetch_one(db)
+    .await?;
     Ok(id)
 }
 
@@ -193,10 +212,10 @@ pub async fn auth_me(State(state): State<AppState>, headers: HeaderMap) -> Respo
     }
 }
 
-pub async fn auth_logout() -> Response {
+pub async fn auth_logout(State(state): State<AppState>) -> Response {
     let mut res = json_ok(StatusCode::OK, json!({ "ok": true }));
     res.headers_mut()
-        .insert(header::SET_COOKIE, clear_auth_cookie().parse().unwrap());
+        .insert(header::SET_COOKIE, clear_auth_cookie(&state).parse().unwrap());
     res
 }
 
