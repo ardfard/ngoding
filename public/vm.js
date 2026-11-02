@@ -6,6 +6,7 @@
 // filesystem changes) to IndexedDB and resuming from it on the next visit.
 import { V86 } from "/vendor/v86/libv86.mjs";
 import { MEMORY_SIZE } from "./v86-config.js";
+import { chooseBootImage } from "./vm-image.js";
 import * as store from "./store.js";
 
 const LEGACY_SAVE_KEY = "snapshot";
@@ -109,11 +110,30 @@ export async function boot(ctx) {
     debounceTimer = null;
   }
 
-  ({ state: image } = await (await fetch("/v86/version.json", { cache: "no-cache" })).json());
+  const { state: currentImage } = await (await fetch("/v86/version.json", { cache: "no-cache" })).json();
   let saved = await loadSaved(saveKey);
-  if (saved && (saved.image !== image || saved.session !== session)) {
-    if (saved.image !== image) term.write("The sandbox image was updated, so your previous files were reset.\n");
+  async function imageExists(name) {
+    if (name === currentImage) return true;
+    try {
+      const res = await fetch(`/v86/${name}`, { method: "HEAD", cache: "no-cache" });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  const exists = saved ? await imageExists(saved.image) : false;
+  const choice = chooseBootImage({
+    saved,
+    currentImage,
+    session,
+    imageExists: () => exists,
+  });
+  image = choice.image;
+  if (choice.kind === "missing-image") {
+    term.write("The sandbox image for this save is no longer on the server, so your previous files were reset.\n");
     await store.del(saveKey);
+    saved = null;
+  } else if (choice.kind === "fresh") {
     saved = null;
   }
 

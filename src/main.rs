@@ -65,6 +65,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/home.js" => "public/home.js",
     "/cloud-api.js" => "public/cloud-api.js",
     "/session-load.js" => "public/session-load.js",
+    "/vm-image.js" => "public/vm-image.js",
     "/play-sessions.js" => "public/play-sessions.js",
     "/exercise-progress.js" => "public/exercise-progress.js",
     "/play" => "public/play.html",
