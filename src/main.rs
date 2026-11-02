@@ -5,6 +5,7 @@
 //  - serves the VM image (fs.json, flat/, the snapshot) from NGODING_IMAGE_DIR
 //  - hands out sessions (POST /api/session) and grades output files
 //    (POST /api/grade), so expected answers never reach the browser
+mod auth;
 mod db;
 mod problems;
 mod session;
