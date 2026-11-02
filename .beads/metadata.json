@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "ngoding",
+  "project_id": "d66cede3-9c01-4493-86e6-41817b8c1db7"
+}
