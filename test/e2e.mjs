@@ -459,5 +459,41 @@ expect("exercise restores after play reset", (await page.locator("#status").inne
 await page.waitForFunction(async () => (await window.ngoding.vm.readFile("/home/user/problems-marker")) === "x", null, { timeout: 60_000 })
   .then(() => expect("exercise marker survives play reset", true), () => expect("exercise marker survives play reset", false));
 
+// Optional accounts/cloud (requires DATABASE_URL + NGODING_DEV_AUTH on the server).
+{
+  const me = await page.request.get("/api/auth/me");
+  if (me.status() === 503) {
+    console.log("skip cloud e2e (accounts unavailable — set DATABASE_URL)");
+  } else {
+    const req = await page.request.post("/api/auth/request", {
+      data: { email: "e2e@example.com" },
+    });
+    const body = await req.json();
+    if (!body.devLink) {
+      expect("dev magic link returned", false);
+    } else {
+      const authPage = await browser.newPage();
+      await authPage.goto(body.devLink);
+      await authPage.waitForURL((u) => u.pathname === "/", { timeout: 15_000 });
+      const who = await authPage.request.get("/api/auth/me");
+      expect("signed in after magic link", who.ok());
+      const pack = {
+        version: 1,
+        root: "/home/user",
+        files: [{ path: "workspace/from-share.py", text: "print(1)\n" }],
+      };
+      const shareRes = await authPage.request.post("/api/shares", { data: { pack } });
+      const share = await shareRes.json();
+      expect("create anonymous share", shareRes.ok() && !!share.id);
+      if (share.id) {
+        const forkRes = await authPage.request.post(`/api/shares/${share.id}/fork`);
+        const fork = await forkRes.json();
+        expect("fork share pack", forkRes.ok() && fork.pack?.files?.length === 1);
+      }
+      await authPage.close();
+    }
+  }
+}
+
 await browser.close();
 process.exit(failed ? 1 : 0);

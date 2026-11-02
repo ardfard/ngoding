@@ -63,12 +63,30 @@ The VM image stays on disk, so it can be rebuilt without rebuilding the server. 
 `fs.json`, `flat/`, `version.json` and `state-*.bin.zst` from `public/v86/` and run:
 
 ```sh
-NGODING_IMAGE_DIR=/srv/ngoding/image NGODING_SECRET=... PORT=8080 ./ngoding
+NGODING_IMAGE_DIR=/srv/ngoding/image NGODING_SECRET=... PORT=8080 \
+  DATABASE_URL=postgres://… NGODING_DATA_DIR=/srv/ngoding/data ./ngoding
 ```
 
 `NGODING_IMAGE_DIR` defaults to `public/v86`, and is served at `/v86/`. Only the
 embedded files and that directory are served. Without `NGODING_SECRET`, the secret is
 kept in `.ngoding-secret` in the working directory.
+
+### Accounts, cloud saves, and shares
+
+Optional — without `DATABASE_URL`, local play/exercise still work; account APIs return 503.
+
+| Variable | Role |
+|---|---|
+| `DATABASE_URL` | Postgres for users, play session metadata, shares, exercise progress |
+| `NGODING_DATA_DIR` | Snapshot/share files on disk (default `./data`) |
+| `SMTP_URL` / `SMTP_FROM` | Magic-link email (any SMTP, including Resend) |
+| `NGODING_DEV_AUTH` | If set and SMTP unset, log/return the magic link for local testing |
+| `NGODING_PUBLIC_URL` | Base URL for magic links (default `http://localhost:$PORT`) |
+
+- **Sign in** (home): email magic link; cookie `ngoding_auth`.
+- **Save to cloud** (play, when signed in): uploads the full VM snapshot; open `/play?s=` restores from the server if IndexedDB is empty.
+- **Share**: publishes `~/` files to `/s/<id>` (no login required); recipients fork into a new local session.
+- Image builds keep prior `state-*.bin.zst` and merge `flat/` hashes so older saves keep booting.
 
 Starting a shell takes about 1 s and downloads about 18 MiB (mostly the snapshot).
 Files are then fetched as they're used: ~22 MiB after the first `python3`, ~78 MiB after
