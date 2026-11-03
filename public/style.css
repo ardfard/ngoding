@@ -1678,7 +1678,7 @@ body.home {
 }
 
 .share-modal {
-  width: min(480px, 100%);
+  width: min(480px, calc(100vw - 32px));
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1751,6 +1751,7 @@ body.home {
 
 .share-note.ok { color: var(--accent); }
 .share-note.error { color: var(--bad); }
+.share-note a { color: inherit; }
 
 .readonly-badge {
   display: inline-flex;
