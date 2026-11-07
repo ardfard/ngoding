@@ -23,7 +23,7 @@ if [ "$(id -u)" = 1000 ] && [ -z "$NGODING_GREETED" ]; then
 Welcome to the ngoding sandbox.
   Challenge files: ~/challenge/<problem>/
   Write answers:   ~/output/
-  Tools: python3, gcc, g++, go, rustc, ghc/runghc, uv, pip, git, nano, nvim
+  Tools: python3, gcc, g++, go, rustc, ghc/runghc, node, tsc, uv, pip, git, nano, nvim
   Offline packages in /opt/wheels (try: uv init demo && cd demo && uv add rich)
 
 EOF

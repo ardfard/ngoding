@@ -8,6 +8,8 @@ export const LANGUAGES = [
   { id: "go", label: "Go", ext: "go", indent: "\t" },
   { id: "rust", label: "Rust", ext: "rs", indent: "    " },
   { id: "haskell", label: "Haskell", ext: "hs", indent: "  " },
+  { id: "javascript", label: "JavaScript", ext: "js", indent: "  " },
+  { id: "typescript", label: "TypeScript", ext: "ts", indent: "  " },
 ];
 
 export const DEFAULT_LANG = "python";
@@ -99,6 +101,21 @@ main = putStrLn "Hello, ngoding!"
 `,
         }],
       };
+    case "javascript":
+      return {
+        open: "main.js",
+        files: [{ path: "main.js", content: 'console.log("Hello, ngoding!");\n' }],
+      };
+    case "typescript":
+      return {
+        open: "main.ts",
+        files: [{
+          path: "main.ts",
+          content: `const greeting: string = "Hello, ngoding!";
+console.log(greeting);
+`,
+        }],
+      };
     default:
       return playgroundTemplate("blank");
   }
@@ -133,6 +150,11 @@ export function runCommand(path, lang) {
       return `rustc -O -o /tmp/ngoding ${file} && /tmp/ngoding`;
     case "haskell":
       return `runghc ${file}`;
+    case "javascript":
+      return `node ${file}`;
+    case "typescript":
+      // tsc has no global @types; point it at the copy baked into the image.
+      return `tsc --target es2020 --module commonjs --types node --typeRoots /usr/local/lib/node_modules/@types --outDir /tmp/ngoding-ts ${file} && node /tmp/ngoding-ts/${file.replace(/^.*\//, "").replace(/\.ts$/, ".js")}`;
     default:
       return `python3 ${file}`;
   }
@@ -241,6 +263,26 @@ main = do
   let answer = "" -- your code here
       _ = text
   writeFile "${problem.outputFile}" answer
+`;
+    case "javascript":
+      return `// ${title}: read the input file, write your answer to the output file.
+const fs = require("fs");
+
+const text = fs.readFileSync("${problem.inputFile}", "utf8");
+
+const answer = ""; // your code here
+
+fs.writeFileSync("${problem.outputFile}", answer);
+`;
+    case "typescript":
+      return `// ${title}: read the input file, write your answer to the output file.
+import { readFileSync, writeFileSync } from "fs";
+
+const text: string = readFileSync("${problem.inputFile}", "utf8");
+
+const answer: string = ""; // your code here
+
+writeFileSync("${problem.outputFile}", answer);
 `;
     default:
       return templateFor(problem, LANGUAGES[0]);

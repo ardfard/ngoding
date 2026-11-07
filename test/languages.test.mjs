@@ -1,7 +1,7 @@
 // test/languages.test.mjs
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { LANGUAGES, languageFromPath, playgroundTemplate } from "../public/languages.js";
+import { LANGUAGES, languageById, languageFromPath, playgroundTemplate, runCommand } from "../public/languages.js";
 
 describe("languageFromPath", () => {
   it("maps .rs to rust", () => {
@@ -9,6 +9,17 @@ describe("languageFromPath", () => {
   });
   it("maps .py to python", () => {
     assert.equal(languageFromPath("~/x.py").id, "python");
+  });
+  it("maps .js and .ts", () => {
+    assert.equal(languageFromPath("~/a.js").id, "javascript");
+    assert.equal(languageFromPath("~/b.ts").id, "typescript");
+  });
+});
+
+describe("runCommand", () => {
+  it("runs typescript through tsc then node", () => {
+    const cmd = runCommand("/home/user/play/main.ts", languageById("typescript"));
+    assert.match(cmd, /^tsc .* ~\/play\/main\.ts && node \/tmp\/ngoding-ts\/main\.js$/);
   });
 });
 

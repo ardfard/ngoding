@@ -8,6 +8,8 @@
 FROM --platform=linux/386 i386/debian:bookworm AS rootfs
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_VERSION=0.13.6
+# Newest @types/node that still supports bookworm's tsc 4.8
+ARG TYPES_NODE_VERSION=18.11.18
 
 # Keep the image small: no docs, man pages (there's no man), or translations.
 # Copyright files stay, since the image redistributes GPL software.
@@ -27,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         golang-go \
         rustc \
         ghc \
+        nodejs node-typescript \
         bash-completion ca-certificates curl git less nano neovim \
         procps file tree sudo \
     && update-alternatives --set editor /usr/bin/nvim \
@@ -63,6 +66,11 @@ RUN cd /usr/lib/modules/*/kernel \
 # uv: astral publishes an i686 build
 RUN curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-i686-unknown-linux-gnu.tar.gz" \
         | tar -xz --strip-components=1 -C /usr/local/bin
+
+# Debian has no @types/node; tsc needs it for require/fs/process
+RUN mkdir -p /usr/local/lib/node_modules/@types/node \
+    && curl -fsSL "https://registry.npmjs.org/@types/node/-/node-${TYPES_NODE_VERSION}.tgz" \
+        | tar -xz --strip-components=1 -C /usr/local/lib/node_modules/@types/node
 
 # No network by default: offline wheelhouse for uv / pip
 RUN mkdir -p /opt/wheels && pip download --dest /opt/wheels --only-binary=:all: \

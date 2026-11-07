@@ -1,11 +1,11 @@
 // Solution editor (CodeMirror 6) for the current problem. The file lives in the
 // VM and is read and written through the VM agent, so the editor and the
-// terminal work on the same file. Language (Python, C, C++, Go, Rust, Haskell)
-// is global: it picks the file extension, syntax mode, template, and Run command.
+// terminal work on the same file. Language (Python, C, C++, Go, Rust, Haskell,
+// JavaScript, TypeScript) is global: it picks the file extension, syntax mode, template, and Run command.
 import {
   Compartment, EditorState, EditorView, HighlightStyle, StreamLanguage,
   Vim, basicSetup, completeAnyWord, completeFromList, cpp, cppLanguage, go,
-  haskell, indentUnit, indentWithTab, keymap, Prec, python, rust, rustLanguage,
+  haskell, indentUnit, indentWithTab, javascript, keymap, Prec, python, rust, rustLanguage,
   syntaxHighlighting, tags as t, vim,
 } from "./codemirror.js";
 import { languageById, languageFromPath, runCommand, solutionPath, templateFor } from "./languages.js";
@@ -46,7 +46,7 @@ const highlight = HighlightStyle.define([
 
 const home = (path) => path.replace(/^\/home\/user(?=\/|$)/, "~");
 
-// lang-python and lang-go ship completion sources; the others don't, so we
+// lang-python, lang-go, and lang-javascript ship completion sources; the others don't, so we
 // attach keywords plus completeAnyWord (names already in the buffer).
 const kw = (words) => completeFromList(words.map((label) => ({ label, type: "keyword" })));
 const C_KW = "auto break case char const continue default do double else enum extern float for goto if inline int long register restrict return short signed sizeof static struct switch typedef union unsigned void volatile while NULL".split(" ");
@@ -73,6 +73,8 @@ function modeFor(lang) {
       const hs = StreamLanguage.define(haskell);
       return withCompletions(hs, hs, HS_KW);
     }
+    case "javascript": return javascript();
+    case "typescript": return javascript({ typescript: true });
     default: return python();
   }
 }

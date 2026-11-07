@@ -108,8 +108,8 @@ in front of the server handles a whole class.
 ## What's in the VM
 
 i386 Debian bookworm with a 6.1 kernel, `python3` 3.11, `pip`, `venv`, `numpy`,
-**`uv`**, `gcc`/`g++`, `go`, `rustc`, `ghc`/`runghc`, `git`, `nano`, `nvim`
-(`vi`/`vim` alias to it), `sudo` (passwordless), and user `user`.
+**`uv`**, `gcc`/`g++`, `go`, `rustc`, `ghc`/`runghc`, `node` 18, `tsc` 4.8, `git`,
+`nano`, `nvim` (`vi`/`vim` alias to it), `sudo` (passwordless), and user `user`.
 
 The VM has **no network** by default. So that the package-manager workflow still works,
 `/opt/wheels` contains a few wheels (`rich`, `requests`, `pytest`, `tabulate`), and
@@ -178,10 +178,10 @@ reads and writes through the agent, so the shell always sees the same bytes.
 
 **Problems (`/problems`):** one editor buffer per problem's solution file (e.g.
 `~/word_freq.py`; the base name comes from `solution_file` in `src/problems.rs`).
-A **Language** select (Python, C, C++, Go, Rust, Haskell) is global across problems,
-remembered in `localStorage`. Changing it swaps the extension (`.py` / `.c` / `.cpp` /
-`.go` / `.rs` / `.hs`), syntax mode, and starter template. Switching problems or
-languages keeps unsaved edits per path; otherwise the file is reloaded, so changes
+A **Language** select (Python, C, C++, Go, Rust, Haskell, JavaScript, TypeScript) is
+global across problems, remembered in `localStorage`. Changing it swaps the extension
+(`.py` / `.c` / `.cpp` / `.go` / `.rs` / `.hs` / `.js` / `.ts`), syntax mode, and
+starter template. Switching problems or languages keeps unsaved edits per path; otherwise the file is reloaded, so changes
 made with nvim in the terminal show up.
 
 **Play (`/play`):** open any text file under `~/` from the tree or tabs. Tabs track
@@ -196,9 +196,9 @@ On both pages:
 
 - **Ctrl-S** saves, and **Ctrl-Enter** (or **Run**) saves and compiles/runs in the
   terminal (`python3`, `gcc`/`g++` then `/tmp/ngoding`, `go run`, `rustc` then
-  `/tmp/ngoding`, or `runghc`). Leaving the page with unsaved edits asks for
+  `/tmp/ngoding`, `runghc`, `node`, or `tsc` into `/tmp/ngoding-ts` then `node`). Leaving the page with unsaved edits asks for
   confirmation.
-- Autocomplete: Python and Go use CodeMirror's built-in keyword/snippet/local-name
+- Autocomplete: Python, Go, JavaScript, and TypeScript use CodeMirror's built-in keyword/snippet/local-name
   sources; C, C++, Rust, and Haskell get keywords plus words already in the buffer.
   None of them know about imported libraries; that would need a language server in
   the VM.

@@ -9,6 +9,7 @@ export { completeAnyWord, completeFromList } from "@codemirror/autocomplete";
 export { python } from "@codemirror/lang-python";
 export { cpp, cppLanguage } from "@codemirror/lang-cpp";
 export { go } from "@codemirror/lang-go";
+export { javascript } from "@codemirror/lang-javascript";
 export { rust, rustLanguage } from "@codemirror/lang-rust";
 export { haskell } from "@codemirror/legacy-modes/mode/haskell";
 export { tags } from "@lezer/highlight";
