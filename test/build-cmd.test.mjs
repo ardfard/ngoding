@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import { detectBuildInListing, findBuild, resolveBuild } from "../public/build-cmd.js";
 
 describe("detectBuildInListing", () => {
+  it("detects tsconfig.json", () => {
+    assert.deepEqual(detectBuildInListing(["src", "package.json", "tsconfig.json"]), { command: "tsc -p .", marker: "tsconfig.json" });
+  });
+
   it("prefers Cargo.toml over Makefile", () => {
     const d = detectBuildInListing(["Makefile", "Cargo.toml", "src"]);
     assert.deepEqual(d, { command: "cargo build", marker: "Cargo.toml" });

@@ -130,8 +130,8 @@ const TEMPLATE_DETAIL = {
   go: "main.go · hello boilerplate",
   rust: "Cargo.toml · src/main.rs",
   haskell: "Main.hs · hello boilerplate",
-  javascript: "main.js · hello boilerplate",
-  typescript: "main.ts · hello boilerplate",
+  javascript: "package.json · main.js",
+  typescript: "tsconfig.json · src/main.ts",
 };
 
 const dialog = $("session-template-dialog");

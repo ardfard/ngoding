@@ -43,6 +43,13 @@ describe("playgroundTemplate", () => {
     assert.match(t.files.find((f) => f.path === "Cargo.toml").content, /\[package\]/);
   });
 
+  it("seeds typescript project with tsconfig", () => {
+    const t = playgroundTemplate("typescript");
+    assert.equal(t.open, "src/main.ts");
+    assert.deepEqual(t.files.map((f) => f.path).sort(), ["package.json", "src/main.ts", "tsconfig.json"]);
+    for (const f of t.files.filter((f) => f.path.endsWith(".json"))) JSON.parse(f.content);
+  });
+
   it("covers every supported language", () => {
     for (const lang of LANGUAGES) {
       const t = playgroundTemplate(lang.id);

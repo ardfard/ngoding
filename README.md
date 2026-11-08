@@ -194,8 +194,8 @@ made with nvim in the terminal show up.
 open paths; deleting or moving a file in the tree closes its tab. Binary or oversized
 files show an error instead of opening. Syntax mode follows the file extension.
 **Build** walks from the current file's directory up to `~/` looking for `Cargo.toml`,
-`go.mod`, `Makefile`, `uv.lock`, or `pyproject.toml`, then runs the matching command
-(`cargo build`, `go build .`, `make`, or `uv sync`). You can type a different command
+`go.mod`, `tsconfig.json`, `Makefile`, `uv.lock`, or `pyproject.toml`, then runs the
+matching command (`cargo build`, `go build .`, `tsc -p .`, `make`, or `uv sync`). You can type a different command
 in the build field; that override is stored in `localStorage` until you clear it.
 
 On both pages:

@@ -104,17 +104,64 @@ main = putStrLn "Hello, ngoding!"
     case "javascript":
       return {
         open: "main.js",
-        files: [{ path: "main.js", content: 'console.log("Hello, ngoding!");\n' }],
+        files: [
+          {
+            path: "package.json",
+            content: `{
+  "name": "ngoding",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  }
+}
+`,
+          },
+          { path: "main.js", content: 'console.log("Hello, ngoding!");\n' },
+        ],
       };
     case "typescript":
       return {
-        open: "main.ts",
-        files: [{
-          path: "main.ts",
-          content: `const greeting: string = "Hello, ngoding!";
+        open: "src/main.ts",
+        files: [
+          {
+            path: "package.json",
+            content: `{
+  "name": "ngoding",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node dist/main.js"
+  }
+}
+`,
+          },
+          {
+            path: "tsconfig.json",
+            content: `{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "strict": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"],
+    "typeRoots": ["/usr/local/lib/node_modules/@types"]
+  },
+  "include": ["src"]
+}
+`,
+          },
+          {
+            path: "src/main.ts",
+            content: `const greeting: string = "Hello, ngoding!";
 console.log(greeting);
 `,
-        }],
+          },
+        ],
       };
     default:
       return playgroundTemplate("blank");

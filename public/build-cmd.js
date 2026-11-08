@@ -1,6 +1,7 @@
 export const BUILD_MARKERS = [
   { file: "Cargo.toml", command: "cargo build" },
   { file: "go.mod", command: "go build ." },
+  { file: "tsconfig.json", command: "tsc -p ." },
   { file: "Makefile", command: "make" },
   { file: "uv.lock", command: "uv sync" },
   { file: "pyproject.toml", command: "uv sync" },
