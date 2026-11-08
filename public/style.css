@@ -1514,8 +1514,9 @@ body.home {
 
 .home-languages {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 64px;
+  gap: 20px;
   padding: 28px 0;
   border-top: 1px solid var(--line);
 }
@@ -1528,15 +1529,14 @@ body.home {
 }
 
 .home-languages ul {
-  flex: 1;
-  min-width: 0;
+  max-width: 100%;
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 16px 32px;
 }
 
@@ -1865,8 +1865,6 @@ body.home {
   .home-nav > a[href^="https://github.com"] { display: none; }
   .home-auth-popover { width: min(340px, calc(100vw - 40px)); }
   .home-hero { padding: 32px 0 48px; }
-  .home-languages { flex-direction: column; align-items: flex-start; gap: 20px; }
-  .home-languages ul { justify-content: flex-start; }
   .home-headline { font-size: 38px; }
   .home-points { font-size: 15px; }
   .home-points li { display: block; }
