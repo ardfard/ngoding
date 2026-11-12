@@ -10,9 +10,14 @@ The app shares one in-browser Debian VM image across modes:
 - **`/exercise`** is graded mode (formerly `/problems`, which redirects here):
   pick a problem, edit its solution, run it in the shell, and **Check** sends
   output to the server. Progress is solved / not yet (`ngoding.solved`).
+- **`/learn`** is learn-by-example (like Go by Example, for every language):
+  each lesson explains a concept (loops, maps, closures, errors, …) and opens a
+  runnable example under `~/learn` in the selected language, with the expected
+  output beside it. Lessons live in `public/lessons/`; every language's example
+  prints the same output.
 
-Play sessions and Exercise keep separate VM snapshots so sandbox experiments
-do not overwrite exercise work.
+Play sessions, Exercise and Learn keep separate VM snapshots (`vm:learn` for
+Learn) so sandbox experiments do not overwrite exercise work.
 
 The VM is [v86](https://github.com/copy/v86), a BSD-licensed emulator of a full x86 PC
 that JIT-compiles to WebAssembly. It runs a real Debian kernel. The root filesystem is
@@ -48,6 +53,7 @@ npm run build:image   # docker + node: public/v86/{fs.json,flat/,state-<hash>.bi
 npm start             # cargo run --release: http://localhost:8080  → /, /play, /exercise
 npm test              # cargo test: checks the reference solvers against Python solutions
 npm run test:unit     # node --test: build detection, language helpers (no VM)
+npm run test:lessons  # compiles and runs every Learn example with local toolchains
 npm run test:e2e      # with the server running: boots the VM in headless Chromium,
                       # home, Play sessions + Exercise (separate saves), grades problems,
                       # runs uv, checks Ctrl-C, the editor (autocomplete, run), server-side

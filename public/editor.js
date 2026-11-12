@@ -79,10 +79,11 @@ function modeFor(lang) {
   }
 }
 
-// ctx: { parent, vm, onStatus(text, cls), onConflictChange, vim, language, readOnly }. Call open(problem) to
-// show a problem's file; until then (and while the VM boots) the editor is read-only. With
-// readOnly every file stays read-only and save/run do nothing (shared-link viewer).
-export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChange, vim: vimOn = false, language: languageId = "python", readOnly: viewOnly = false }) {
+// ctx: { parent, vm, onStatus(text, cls), onConflictChange, onRun(path), vim, language, readOnly }.
+// Call open(problem) to show a problem's file; until then (and while the VM boots) the editor is
+// read-only. A problem can also be any document with pathFor(lang) and templateFor(lang) (Learn
+// lessons). With readOnly every file stays read-only and save/run do nothing (shared-link viewer).
+export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChange, onRun, vim: vimOn = false, language: languageId = "python", readOnly: viewOnly = false }) {
   // path -> { state, saved, template }: one buffer per file, so switching
   // problems or languages keeps unsaved edits. saved is the text in the VM, or
   // null if the file doesn't exist yet.
@@ -145,14 +146,14 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
   // from the VM unless it has unsaved edits, so changes made in the terminal
   // (e.g. with vim) show up.
   async function open(problem) {
-    const path = solutionPath(problem, lang);
+    const path = problem.pathFor ? problem.pathFor(lang) : solutionPath(problem, lang);
     const id = ++opening;
     if (!isDirty(path)) {
       if (current?.path !== path) onStatus(`${home(path)} · loading…`, "");
       const saved = await vm.readFile(path);
       if (id !== opening) return;
       if (!isDirty(path)) {
-        const template = templateFor(problem, lang);
+        const template = problem.templateFor ? problem.templateFor(lang) : templateFor(problem, lang);
         files.set(path, {
           state: makeState(saved ?? template, false, lang),
           saved,
@@ -352,7 +353,15 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
     if (current && (await save())) {
       const fileLang = files.get(current.path)?.language ?? lang;
       vm.type(`\x15${runCommand(current.path, fileLang)}\n`);
+      onRun?.(current.path);
     }
+  }
+
+  // Put the open file's template back (unsaved until the next Save or Run).
+  function resetToTemplate() {
+    if (!current || viewOnly) return;
+    const { template } = files.get(current.path);
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: template } });
   }
 
   const hasUnsaved = () => [...files.keys()].some(isDirty);
@@ -386,6 +395,7 @@ export function createEditor({ parent, vm, onStatus, onDocChange, onConflictChan
     save,
     saveAll,
     run,
+    resetToTemplate,
     hasUnsaved,
     isDirtyPath,
     setVim,

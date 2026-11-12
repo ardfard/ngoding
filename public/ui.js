@@ -18,24 +18,10 @@ import { createEditor } from "./editor.js";
 import { pickExerciseProblem } from "./exercise-progress.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 import * as store from "./store.js";
+import { createWorkspaceLayout } from "./workspace-layout.js";
 import { createVmStatus } from "./vm-persist.js";
 
 const $ = (id) => document.getElementById(id);
-
-const LAYOUTS = ["vertical", "horizontal", "editor", "shell"];
-const LAYOUT_TITLE = {
-  vertical: "Layout: Vertical — editor above shell",
-  horizontal: "Layout: Horizontal — editor beside shell",
-  editor: "Layout: Editor only — hide the shell",
-  shell: "Layout: Shell only — hide the editor",
-};
-/* Lucide rows-2 / columns-2 / square / square-terminal — matches design/main.pen */
-const LAYOUT_ICON = {
-  vertical: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></svg>`,
-  horizontal: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></svg>`,
-  editor: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
-  shell: `<svg class="tb-icon layout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/></svg>`,
-};
 
 async function post(url, body) {
   const res = await fetch(url, {
@@ -105,7 +91,7 @@ export async function startApp(vm) {
     $("result").className = "";
     closeProblemMenu();
     renderProblem();
-    if (booted && layout !== "shell") editor.open(current);
+    if (booted && layout.mode !== "shell") editor.open(current);
   }
 
   function renderProblemList() {
@@ -199,42 +185,11 @@ export async function startApp(vm) {
     },
   });
 
-  let layout = localStorage.getItem("ngoding.layout");
-  if (layout === "split") layout = "vertical";
-  if (!LAYOUTS.includes(layout)) {
-    layout = localStorage.getItem("ngoding.editor") === "off" ? "shell" : "vertical";
-  }
-  let editorShare = Number(localStorage.getItem("ngoding.split"));
-  if (!(editorShare > 0.15 && editorShare < 0.85)) editorShare = 0.6;
-  let layoutMenuOpen = false;
-
-  function closeLayoutMenu() {
-    layoutMenuOpen = false;
-    $("layout-menu").hidden = true;
-    $("layout-toggle").setAttribute("aria-expanded", "false");
-  }
-
-  function setLayout(mode) {
-    layout = mode;
-    localStorage.setItem("ngoding.layout", mode);
-    localStorage.removeItem("ngoding.editor");
-    const ws = $("workspace");
-    ws.classList.remove(...LAYOUTS.map((m) => `layout-${m}`), "layout-split");
-    ws.classList.add(`layout-${mode}`);
-    $("layout-toggle").innerHTML = LAYOUT_ICON[mode];
-    $("layout-toggle").title = LAYOUT_TITLE[mode];
-    for (const btn of $("layout-menu").querySelectorAll("[data-layout]")) {
-      btn.setAttribute("aria-checked", btn.dataset.layout === mode);
-    }
-    $("split").setAttribute("aria-orientation", mode === "horizontal" ? "vertical" : "horizontal");
-    closeLayoutMenu();
-    if (mode !== "shell" && booted) editor.open(current).then(editor.focus);
-  }
-
-  function setEditorShare(share) {
-    editorShare = Math.min(0.85, Math.max(0.15, share));
-    $("workspace").style.setProperty("--editor-share", editorShare);
-  }
+  const layout = createWorkspaceLayout({
+    onChange: (mode) => {
+      if (mode !== "shell" && booted) editor.open(current).then(editor.focus);
+    },
+  });
 
   $("seed").textContent = seed;
   $("check").onclick = check;
@@ -248,67 +203,16 @@ export async function startApp(vm) {
     setSidebarOpen(!document.body.classList.contains("sidebar-open"));
   $("sidebar-backdrop")?.addEventListener("click", () => setSidebarOpen(false));
 
-  $("layout-toggle").onclick = (e) => {
-    e.stopPropagation();
-    layoutMenuOpen = !layoutMenuOpen;
-    $("layout-menu").hidden = !layoutMenuOpen;
-    $("layout-toggle").setAttribute("aria-expanded", layoutMenuOpen ? "true" : "false");
-  };
-  for (const btn of $("layout-menu").querySelectorAll("[data-layout]")) {
-    btn.onclick = () => setLayout(btn.dataset.layout);
-  }
-
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       setSidebarOpen(false);
       closeProblemMenu();
-      closeLayoutMenu();
     }
   });
   document.addEventListener("click", (e) => {
     if (menuOpen && !e.target.closest(".problem-picker")) closeProblemMenu();
-    if (layoutMenuOpen && !e.target.closest(".layout-picker")) closeLayoutMenu();
   });
 
-  {
-    const split = $("split");
-    let dragging = false;
-    split.onpointerdown = (e) => {
-      dragging = true;
-      split.classList.add("dragging");
-      split.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    };
-    split.onpointermove = (e) => {
-      if (!dragging) return;
-      const ws = $("workspace").getBoundingClientRect();
-      const toolH = $("toolbar").offsetHeight;
-      if (layout === "horizontal") {
-        const avail = ws.width - split.offsetWidth;
-        if (avail > 0) setEditorShare((e.clientX - ws.left) / avail);
-      } else {
-        const avail = ws.height - toolH - split.offsetHeight;
-        if (avail > 0) setEditorShare((e.clientY - ws.top - toolH) / avail);
-      }
-    };
-    const endDrag = () => {
-      if (!dragging) return;
-      dragging = false;
-      split.classList.remove("dragging");
-      localStorage.setItem("ngoding.split", String(editorShare));
-    };
-    split.onpointerup = endDrag;
-    split.onpointercancel = endDrag;
-    split.onkeydown = (e) => {
-      const step = e.shiftKey ? 0.1 : 0.05;
-      const horizontal = layout === "horizontal";
-      if (e.key === (horizontal ? "ArrowLeft" : "ArrowUp")) setEditorShare(editorShare - step);
-      else if (e.key === (horizontal ? "ArrowRight" : "ArrowDown")) setEditorShare(editorShare + step);
-      else return;
-      e.preventDefault();
-      localStorage.setItem("ngoding.split", String(editorShare));
-    };
-  }
   $("vim-toggle").setAttribute("aria-pressed", vimOn);
   $("vim-toggle").onclick = () => {
     vimOn = !vimOn;
@@ -323,7 +227,7 @@ export async function startApp(vm) {
     lang = languageById(langSelect.value);
     localStorage.setItem(LANG_STORAGE_KEY, lang.id);
     await editor.setLanguage(lang.id);
-    if (layout !== "shell") editor.focus();
+    if (layout.mode !== "shell") editor.focus();
   };
   let persist = { phase: "idle", savedAt: null };
 
@@ -360,8 +264,6 @@ export async function startApp(vm) {
   }
 
   renderProblem();
-  setEditorShare(editorShare);
-  setLayout(layout);
 
   // The terminal measures its cell size once, on open; do that with Plex Mono, not a fallback.
   await Promise.all([init(), document.fonts.load('13px "IBM Plex Mono"').catch(() => {})]);
@@ -389,8 +291,8 @@ export async function startApp(vm) {
       $("check").disabled = false;
       $("editor-save").disabled = $("editor-run").disabled = false;
       booted = true;
-      if (layout !== "shell") editor.open(current);
-      if (layout !== "editor") term.focus();
+      if (layout.mode !== "shell") editor.open(current);
+      if (layout.mode !== "editor") term.focus();
       else editor.focus();
     })
     .catch((e) => {

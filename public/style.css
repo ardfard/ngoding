@@ -415,6 +415,54 @@ article#problem h2 {
 }
 
 article#problem p { margin: 0 0 10px; }
+
+/* —— Learn —— */
+article.lesson { font-size: 13px; }
+article.lesson ul { margin: 0 0 10px; padding-left: 18px; }
+article.lesson li { margin-bottom: 4px; }
+article.lesson b { color: var(--fg); font-weight: 600; }
+article.lesson kbd {
+  font: 11px "IBM Plex Mono", ui-monospace, monospace;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--fg);
+}
+article.lesson .lesson-file {
+  margin-top: 16px;
+  font: 11px "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--muted);
+}
+article.lesson h3 {
+  margin: 0 0 6px;
+  font: 400 10px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+article.lesson .lesson-output { margin: 0; white-space: pre; }
+
+.lesson-nav { display: flex; gap: 8px; }
+.lesson-nav button {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.lesson-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.lesson-nav button:disabled { opacity: 0.35; cursor: default; }
+#lesson-prev { text-align: left; }
+#lesson-next { text-align: right; }
 article#problem .hint {
   color: var(--muted);
   font-size: 12px;

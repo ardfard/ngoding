@@ -81,6 +81,15 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/exercise" => "public/exercise.html",
     "/exercise.js" => "public/exercise.js",
     "/problems.js" => "public/problems.js",
+    "/learn" => "public/learn.html",
+    "/learn.js" => "public/learn.js",
+    "/learn-ui.js" => "public/learn-ui.js",
+    "/lessons.js" => "public/lessons.js",
+    "/lessons/basics.js" => "public/lessons/basics.js",
+    "/lessons/collections.js" => "public/lessons/collections.js",
+    "/lessons/functions.js" => "public/lessons/functions.js",
+    "/lessons/types.js" => "public/lessons/types.js",
+    "/workspace-layout.js" => "public/workspace-layout.js",
     "/editor.js" => "public/editor.js",
     "/languages.js" => "public/languages.js",
     "/codemirror.js" => "public/codemirror.js",
@@ -375,6 +384,8 @@ mod tests {
         assert_eq!(content_type(EMBEDDED["/"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/exercise"].path), "text/html; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/play"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/learn"].path), "text/html; charset=utf-8");
+        assert_eq!(content_type(EMBEDDED["/lessons/types.js"].path), "text/javascript; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/cloud-api.js"].path), "text/javascript; charset=utf-8");
         assert_eq!(content_type(EMBEDDED["/vendor/v86/v86.wasm"].path), "application/wasm");
         assert!(EMBEDDED["/vendor/v86/libv86.mjs"].body.len() > 100_000);
