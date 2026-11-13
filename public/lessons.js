@@ -7,9 +7,10 @@
 import basics from "./lessons/basics.js";
 import collections from "./lessons/collections.js";
 import functions from "./lessons/functions.js";
+import tasks from "./lessons/tasks.js";
 import types from "./lessons/types.js";
 
-export const LESSONS = [...basics, ...collections, ...functions, ...types];
+export const LESSONS = [...basics, ...collections, ...functions, ...types, ...tasks];
 
 export const LEARN_DIR = "/home/user/learn";
 

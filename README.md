@@ -11,7 +11,8 @@ The app shares one in-browser Debian VM image across modes:
   pick a problem, edit its solution, run it in the shell, and **Check** sends
   output to the server. Progress is solved / not yet (`ngoding.solved`).
 - **`/learn`** is learn-by-example (like Go by Example, for every language):
-  each lesson explains a concept (loops, maps, closures, errors, …) and opens a
+  each lesson explains a concept (loops, maps, closures, errors, …) or a common
+  task (files, directories, JSON, running commands, threads, TCP sockets, …) and opens a
   runnable example under `~/learn` in the selected language, with the expected
   output beside it. **Check my output** runs the file in the shell, captures its
   stdout and compares it with the expected output (all in the browser); passing

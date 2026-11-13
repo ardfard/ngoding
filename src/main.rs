@@ -90,6 +90,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/lessons/collections.js" => "public/lessons/collections.js",
     "/lessons/functions.js" => "public/lessons/functions.js",
     "/lessons/types.js" => "public/lessons/types.js",
+    "/lessons/tasks.js" => "public/lessons/tasks.js",
     "/workspace-layout.js" => "public/workspace-layout.js",
     "/editor.js" => "public/editor.js",
     "/languages.js" => "public/languages.js",

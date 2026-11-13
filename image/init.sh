@@ -17,6 +17,12 @@ hostname ngoding
 # (docker build bind-mounts /etc/hosts, so it is written here instead)
 printf '127.0.0.1 localhost\n127.0.1.1 ngoding\n' > /etc/hosts
 dmesg -n 1
+# Bring up loopback so programs can talk to themselves over TCP (127.0.0.1).
+# There's no iproute2 in the image: SIOCGIFFLAGS, then SIOCSIFFLAGS with IFF_UP.
+python3 -c 'import fcntl, socket, struct
+s = socket.socket()
+flags = struct.unpack("16sH", fcntl.ioctl(s, 0x8913, struct.pack("16sH14x", b"lo", 0))[:18])[1]
+fcntl.ioctl(s, 0x8914, struct.pack("16sH14x", b"lo", flags | 1))'
 
 # Control channel for the web page (second serial port)
 /usr/local/sbin/ngoding-agent &
