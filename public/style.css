@@ -441,6 +441,8 @@ article.lesson h3 {
   color: var(--muted);
 }
 article.lesson .lesson-output { margin: 0; white-space: pre; }
+article.lesson .lesson-solved { color: var(--accent); }
+button#check.checking { background: none; color: var(--accent); border: 1px solid var(--accent); }
 
 .lesson-nav { display: flex; gap: 8px; }
 .lesson-nav button {

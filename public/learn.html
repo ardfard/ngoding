@@ -46,6 +46,11 @@
       </div>
       <article id="problem" class="lesson"></article>
       <footer>
+        <button id="check" disabled title="Run this lesson and compare its output with the expected output">
+          <svg class="tb-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M18 6L7 17l-5-5M22 10l-10.5 10.5L8 16"/></svg>
+          <span id="check-label">Check my output</span>
+        </button>
+        <div id="result" role="status"></div>
         <nav class="lesson-nav" aria-label="Lessons">
           <button type="button" id="lesson-prev">← <span id="lesson-prev-title"></span></button>
           <button type="button" id="lesson-next"><span id="lesson-next-title"></span> →</button>
@@ -55,6 +60,7 @@
           <p>
             A Debian VM running in your browser (v86, x86 emulated in WebAssembly).
             Examples live in <code>~/learn</code>; your edits are saved in this browser.
+            Check runs the example in the shell and compares its output, all inside the VM.
           </p>
           <button id="reset" class="danger">Reset VM &amp; examples</button>
         </details>

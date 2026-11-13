@@ -84,6 +84,7 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/learn" => "public/learn.html",
     "/learn.js" => "public/learn.js",
     "/learn-ui.js" => "public/learn-ui.js",
+    "/learn-check.js" => "public/learn-check.js",
     "/lessons.js" => "public/lessons.js",
     "/lessons/basics.js" => "public/lessons/basics.js",
     "/lessons/collections.js" => "public/lessons/collections.js",

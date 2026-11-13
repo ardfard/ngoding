@@ -1,26 +1,32 @@
 // Learn UI: pick a lesson, read about the concept, then run (and tweak) its
 // example in the selected language. Each lesson is one file per language under
 // ~/learn, opened in the same editor and VM as Exercise but with its own saved
-// VM snapshot (vm:learn). Nothing is graded; the sidebar shows the expected
-// output, and lessons you've run get a check mark.
+// VM snapshot (vm:learn). The sidebar shows the expected output; Check runs the
+// example and compares (see learn-check.js), and lessons that pass get a check mark.
 
 import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
 import { createEditor } from "./editor.js";
+import { CHECK_OUT, CHECK_SCRIPT, CHECK_STATUS, checkCommand, checkScript, compareOutput, parseStatus } from "./learn-check.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 import { LESSONS, lessonById, lessonPath } from "./lessons.js";
 import { createVmStatus } from "./vm-persist.js";
 import { createWorkspaceLayout } from "./workspace-layout.js";
 
-const TRIED_KEY = "ngoding.learn.tried";
+const SOLVED_KEY = "ngoding.learn.solved";
+const POLL_MS = 500;
 const CURRENT_KEY = "ngoding.learn.current";
 
 const $ = (id) => document.getElementById(id);
 const padNum = (i) => String(i + 1).padStart(2, "0");
 const home = (path) => path.replace(/^\/home\/user(?=\/|$)/, "~");
 
-function readTried() {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function readSolved() {
+  // Before Check existed, running a lesson marked it "tried"; that isn't solved.
+  localStorage.removeItem("ngoding.learn.tried");
   try {
-    return new Set(JSON.parse(localStorage.getItem(TRIED_KEY) ?? "[]"));
+    return new Set(JSON.parse(localStorage.getItem(SOLVED_KEY) ?? "[]"));
   } catch {
     return new Set();
   }
@@ -33,7 +39,9 @@ export async function startLearn(vm) {
     pathFor: (lang) => lessonPath(lesson, lang),
     templateFor: (lang) => lesson.code[lang.id],
   }]));
-  const tried = readTried();
+  const solved = readSolved();
+  // The check in progress ({} identity token), or null.
+  let checking = null;
   const fromHash = () => lessonById(decodeURIComponent(location.hash.slice(1)));
   let current = fromHash() ?? lessonById(localStorage.getItem(CURRENT_KEY)) ?? LESSONS[0];
   const status = createVmStatus($("status"));
@@ -50,11 +58,6 @@ export async function startLearn(vm) {
     onStatus: (text, cls) => {
       $("editor-status").textContent = text;
       $("editor-status").className = cls;
-    },
-    onRun: () => {
-      tried.add(current.id);
-      localStorage.setItem(TRIED_KEY, JSON.stringify([...tried]));
-      renderLesson();
     },
   });
 
@@ -82,9 +85,9 @@ export async function startLearn(vm) {
         b.type = "button";
         b.setAttribute("role", "option");
         b.setAttribute("aria-selected", l === current);
-        b.classList.toggle("solved", tried.has(l.id));
+        b.classList.toggle("solved", solved.has(l.id));
         b.innerHTML = `<span class="problem-num">${padNum(LESSONS.indexOf(l))}</span><span class="problem-title"></span>${
-          tried.has(l.id) ? '<span class="solved-mark" aria-label="tried">✓</span>' : ""
+          solved.has(l.id) ? '<span class="solved-mark" aria-label="solved">✓</span>' : ""
         }`;
         b.querySelector(".problem-title").textContent = l.title;
         b.onclick = () => selectLesson(l);
@@ -112,13 +115,13 @@ export async function startLearn(vm) {
     const idx = LESSONS.indexOf(current);
     $("problem-select-num").textContent = padNum(idx);
     $("problem-select-title").textContent = current.title;
-    const nTried = LESSONS.filter((l) => tried.has(l.id)).length;
-    $("picker-count").textContent = `${nTried} tried · ${LESSONS.length} lessons`;
+    const nSolved = LESSONS.filter((l) => solved.has(l.id)).length;
+    $("picker-count").textContent = `${nSolved} solved · ${LESSONS.length} lessons`;
     $("picker-total").textContent = `${LESSONS.length} lessons`;
 
     const file = home(lessonPath(current, lang));
     $("problem").innerHTML = `<h2></h2>${current.intro}
-<p class="lesson-file">${lang.label} · <code></code></p>
+<p class="lesson-file">${lang.label} · <code></code>${solved.has(current.id) ? ' · <span class="lesson-solved">✓ solved</span>' : ""}</p>
 <h3>Expected output</h3>
 <pre class="lesson-output"></pre>`;
     $("problem").querySelector("h2").textContent = current.title;
@@ -135,9 +138,75 @@ export async function startLearn(vm) {
     if (menuOpen) renderList();
   }
 
+  function setResult(cls, text) {
+    $("result").className = cls;
+    $("result").textContent = text;
+  }
+
+  function setChecking(on) {
+    $("check-label").textContent = on ? "Stop waiting" : "Check my output";
+    $("check").classList.toggle("checking", on);
+  }
+
+  function cancelCheck(message = "") {
+    if (!checking) return;
+    checking = null;
+    setChecking(false);
+    setResult("", message);
+  }
+
+  // Make sure the lesson file in the VM is what the student sees: save the
+  // editor, or write the original example if it was never opened.
+  async function ensureLessonFile(path) {
+    if (editor.currentPath() === path) return editor.save();
+    if ((await vm.readFile(path)) !== null) return true;
+    return vm.writeFile(path, current.code[lang.id]);
+  }
+
+  async function check() {
+    if (checking) return cancelCheck("Stopped waiting. Press Ctrl-C in the shell if it's still running.");
+    const run = {};
+    checking = run;
+    const lesson = current;
+    const path = lessonPath(lesson, lang);
+    setChecking(true);
+    setResult("", "Running your program in the shell…");
+    try {
+      if (!(await ensureLessonFile(path))) throw new Error("could not save the lesson file");
+      if (!(await vm.writeFile(CHECK_SCRIPT, checkScript(path, lang)))) throw new Error("could not write the check script");
+      await vm.rm(CHECK_STATUS);
+      if (checking !== run) return;
+      const nonce = Math.random().toString(36).slice(2, 10);
+      vm.type(`\x15${checkCommand(nonce)}\n`);
+      let status = null;
+      while (status === null) {
+        await sleep(POLL_MS);
+        if (checking !== run) return;
+        status = parseStatus(await vm.readFile(CHECK_STATUS), nonce);
+      }
+      const output = (await vm.readFile(CHECK_OUT)) ?? "";
+      if (checking !== run) return;
+      const result = compareOutput(lesson.output, output, status);
+      setResult(result.ok ? "ok" : "fail", (result.ok ? "✓ " : "✗ ") + result.message);
+      if (result.ok) {
+        solved.add(lesson.id);
+        localStorage.setItem(SOLVED_KEY, JSON.stringify([...solved]));
+        renderLesson();
+      }
+    } catch (e) {
+      if (checking === run) setResult("fail", `Checker error: ${e.message ?? e}`);
+    } finally {
+      if (checking === run) {
+        checking = null;
+        setChecking(false);
+      }
+    }
+  }
+
   function selectLesson(lesson) {
     closeMenu();
     if (lesson === current) return;
+    cancelCheck();
     current = lesson;
     localStorage.setItem(CURRENT_KEY, lesson.id);
     history.replaceState(null, "", `#${lesson.id}`);
@@ -157,6 +226,7 @@ export async function startLearn(vm) {
   );
   langSelect.value = lang.id;
   langSelect.onchange = async () => {
+    cancelCheck();
     lang = languageById(langSelect.value);
     localStorage.setItem(LANG_STORAGE_KEY, lang.id);
     renderLesson();
@@ -197,13 +267,14 @@ export async function startLearn(vm) {
   };
   $("editor-save").onclick = () => editor.save();
   $("editor-run").onclick = () => editor.run();
+  $("check").onclick = check;
   $("lesson-reset").onclick = () => {
     editor.resetToTemplate();
     editor.focus();
   };
   $("reset").onclick = async () => {
     if (!confirm("Delete all files in the VM, including your edited examples?")) return;
-    localStorage.removeItem(TRIED_KEY);
+    localStorage.removeItem(SOLVED_KEY);
     await vm.reset();
     location.reload();
   };
@@ -262,7 +333,7 @@ export async function startLearn(vm) {
       else if (vm.isDirty()) persist = { phase: "dirty", savedAt: persist.savedAt };
       status.persist(persist);
       status.ready({ restored, ms: performance.now() - t0 });
-      $("editor-save").disabled = $("editor-run").disabled = $("lesson-reset").disabled = false;
+      $("editor-save").disabled = $("editor-run").disabled = $("lesson-reset").disabled = $("check").disabled = false;
       booted = true;
       if (layout.mode !== "shell") editor.open(docs.get(current));
       if (layout.mode !== "editor") term.focus();
@@ -274,5 +345,5 @@ export async function startLearn(vm) {
       term.write(`\n\x1b[31mBoot failed: ${e.message ?? e}\x1b[0m\n`);
     });
 
-  window.ngoding = { vm, editor, term };
+  window.ngoding = { vm, editor, term, check };
 }

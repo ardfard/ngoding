@@ -13,8 +13,10 @@ The app shares one in-browser Debian VM image across modes:
 - **`/learn`** is learn-by-example (like Go by Example, for every language):
   each lesson explains a concept (loops, maps, closures, errors, …) and opens a
   runnable example under `~/learn` in the selected language, with the expected
-  output beside it. Lessons live in `public/lessons/`; every language's example
-  prints the same output.
+  output beside it. **Check my output** runs the file in the shell, captures its
+  stdout and compares it with the expected output (all in the browser); passing
+  lessons are marked solved (`ngoding.learn.solved`). Lessons live in
+  `public/lessons/`; every language's example prints the same output.
 
 Play sessions, Exercise and Learn keep separate VM snapshots (`vm:learn` for
 Learn) so sandbox experiments do not overwrite exercise work.
@@ -59,6 +61,8 @@ npm run test:e2e      # with the server running: boots the VM in headless Chromi
                       # runs uv, checks Ctrl-C, the editor (autocomplete, run), server-side
                       # grading, saving + restoring work,
                       # and that a reload is served from cache
+npm run test:e2e:learn # with the server running: Check in Learn passes and fails as it should;
+                      # `node test/e2e-learn.mjs /usr/bin/chromium json:rust` checks given lessons
 ```
 
 ## Deploy
