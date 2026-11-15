@@ -6,9 +6,10 @@ export default [
   {
     id: "hello_world",
     title: "Hello World",
-    intro: `<p>Every journey starts by printing a line. Press <b>Run</b> (or <kbd>Ctrl-Enter</kbd>) to save the
+    intro: `<p>Every journey starts by printing a line. Each lesson opens a starter file; write the program
+yourself so it prints the expected output below. Press <b>Run</b> (or <kbd>Ctrl-Enter</kbd>) to save the
 file, compile it if the language needs that, and run it in the shell below.</p>
-<p><b>Check my output</b> runs the example and compares what it prints with the expected output; a lesson is solved when they match. Edit the message and run it again (it won't pass Check until you put it back). Your changes are kept in this browser.</p>`,
+<p><b>Check my output</b> runs your program and compares what it prints with the expected output; a lesson is solved when they match. Your changes are kept in this browser.</p>`,
     output: "Hello, world!\n",
     code: {
       python: `# print writes its arguments followed by a newline.

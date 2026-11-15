@@ -6,7 +6,7 @@ export default [
     title: "Functions",
     intro: `<p>A <b>function</b> packages code under a name, takes <b>parameters</b> and <b>returns</b> a
 result. Functions are the main way to split a program into reusable pieces.</p>
-<p>The example also shows functions taking <i>any number</i> of arguments, and functions passed to
+<p>The expected output also covers functions taking <i>any number</i> of arguments, and functions passed to
 other functions as values.</p>`,
     output: `1+2 = 3
 1+2+3 = 6

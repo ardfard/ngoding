@@ -1,7 +1,9 @@
 // End-to-end check for Learn: boot the VM, Check lessons through the UI.
 // Needs `npm start` running. Usage: node test/e2e-learn.mjs [chromium-path] [lesson[:lang] ...]
-// With no lessons, checks hello_world (pass, then a broken edit that fails).
+// With no lessons, checks hello_world (the starter fails, a solution passes,
+// a wrong one fails). With lessons, writes each reference example and checks it.
 import { chromium } from "playwright-core";
+import { lessonById } from "../public/lessons.js";
 
 const URL_BASE = process.env.URL ?? "http://localhost:8080";
 const [exe = "/usr/bin/chromium", ...targets] = process.argv.slice(2);
@@ -44,21 +46,30 @@ const shellTail = () => page.evaluate(() => {
   return lines.filter((l) => l.trim()).slice(-15).map((l) => `    | ${l}`).join("\n");
 });
 
-if (!targets.length) {
-  await open("hello_world", "python");
-  let r = await check();
-  ok(r.startsWith("✓"), `hello_world passes: ${r}`);
-  ok(await page.locator(".lesson-solved").count() === 1, "lesson shows solved");
-  // Replace the buffer with a wrong program.
+// Replace the editor buffer with `src`.
+async function write(src) {
   await page.locator(".cm-content").click();
   await page.keyboard.press("Control+a");
-  await page.keyboard.insertText('print("Hello, there!")\n');
+  await page.keyboard.insertText(src);
+}
+
+if (!targets.length) {
+  await open("hello_world", "python");
+  ok((await page.locator(".cm-content").textContent()).includes("TODO"), "lesson opens a starter");
+  let r = await check();
+  ok(r.startsWith("✗"), `starter fails: ${r}`);
+  await write('print("Hello, world!")\n');
+  r = await check();
+  ok(r.startsWith("✓"), `hello_world passes: ${r}`);
+  ok(await page.locator(".lesson-solved").count() === 1, "lesson shows solved");
+  await write('print("Hello, there!")\n');
   r = await check();
   ok(r.startsWith("✗") && r.includes("Line 1"), `edited hello_world fails: ${r}`);
 } else {
   for (const t of targets) {
     const [lesson, lang = "python"] = t.split(":");
     await open(lesson, lang);
+    await write(lessonById(lesson).code[lang]);
     let r = await check().catch(async (e) => {
       await page.click("#check"); // stop waiting and move on
       return `timeout (${e.message.split("\n")[0]})`;

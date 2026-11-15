@@ -10,14 +10,16 @@ The app shares one in-browser Debian VM image across modes:
 - **`/exercise`** is graded mode (formerly `/problems`, which redirects here):
   pick a problem, edit its solution, run it in the shell, and **Check** sends
   output to the server. Progress is solved / not yet (`ngoding.solved`).
-- **`/learn`** is learn-by-example (like Go by Example, for every language):
-  each lesson explains a concept (loops, maps, closures, errors, …) or a common
-  task (files, directories, JSON, running commands, threads, TCP sockets, …) and opens a
-  runnable example under `~/learn` in the selected language, with the expected
-  output beside it. **Check my output** runs the file in the shell, captures its
+- **`/learn`** is learn-by-doing (like Go by Example, for every language, but
+  you write the code): each lesson explains a concept (loops, maps, closures,
+  errors, …) or a common task (files, directories, JSON, running commands,
+  threads, TCP sockets, …) and opens a starter file under `~/learn` in the
+  selected language (the example's imports and an empty `main`, no solution),
+  with the expected output beside it. **Check my output** runs the file in the shell, captures its
   stdout and compares it with the expected output (all in the browser); passing
   lessons are marked solved (`ngoding.learn.solved`). Lessons live in
-  `public/lessons/`; every language's example prints the same output.
+  `public/lessons/`; every language's reference example (kept for the tests,
+  not shown) prints the same output.
 
 Play sessions, Exercise and Learn keep separate VM snapshots (`vm:learn` for
 Learn) so sandbox experiments do not overwrite exercise work.
@@ -57,6 +59,7 @@ npm start             # cargo run --release: http://localhost:8080  → /, /play
 npm test              # cargo test: checks the reference solvers against Python solutions
 npm run test:unit     # node --test: build detection, language helpers (no VM)
 npm run test:lessons  # compiles and runs every Learn example with local toolchains
+                      # (`node test/lessons-run.mjs --starters` checks the starter files build and print nothing)
 npm run test:e2e      # with the server running: boots the VM in headless Chromium,
                       # home, Play sessions + Exercise (separate saves), grades problems,
                       # runs uv, checks Ctrl-C, the editor (autocomplete, run), server-side

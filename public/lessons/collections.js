@@ -229,7 +229,7 @@ console.log("sum:", nums.reduce((total, x) => total + x, 0));
     intro: `<p>A <b>map</b> (dictionary, hash table) associates keys with values, so you can look a value up by
 its key instead of its position.</p>
 <p>Iteration order differs between languages; hash maps often have <i>no</i> defined order, so sort the
-keys when order matters. C has no built-in map: the example builds a tiny one.</p>`,
+keys when order matters. C has no built-in map: build a tiny one.</p>`,
     output: `apple: 3
 size: 3
 size after delete: 2

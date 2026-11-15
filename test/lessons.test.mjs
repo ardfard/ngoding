@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { LANGUAGES, languageById } from "../public/languages.js";
-import { LESSONS, lessonById, lessonFileName, lessonPath } from "../public/lessons.js";
+import { LESSONS, lessonById, lessonFileName, lessonPath, starterCode } from "../public/lessons.js";
 
 describe("LESSONS", () => {
   it("has unique ids that are valid file/crate names", () => {
@@ -39,5 +39,29 @@ describe("lessonById", () => {
     assert.equal(lessonById("maps").title, "Maps");
     assert.equal(lessonById("nope"), null);
     assert.equal(lessonById(null), null);
+  });
+});
+
+describe("starterCode", () => {
+  it("gives every lesson a starter in every language that is not the example", () => {
+    for (const lesson of LESSONS) {
+      for (const lang of LANGUAGES) {
+        const src = starterCode(lesson, lang.id);
+        assert.ok(src.endsWith("\n") && src.includes("TODO"), `${lesson.id} [${lang.id}]`);
+        assert.notEqual(src, lesson.code[lang.id], `${lesson.id} [${lang.id}]`);
+        // No line of the expected output appears in the starter.
+        for (const line of lesson.output.split("\n").filter((l) => l.length > 3)) {
+          assert.ok(!src.includes(line), `${lesson.id} [${lang.id}] gives away ${JSON.stringify(line)}`);
+        }
+      }
+    }
+  });
+
+  it("keeps the example's imports", () => {
+    const files = lessonById("files");
+    assert.match(starterCode(files, "python"), /^import os$/m);
+    assert.match(starterCode(files, "rust"), /^use std::fs/m);
+    assert.match(starterCode(files, "go"), /^\/\/ \t"os"$/m);
+    assert.equal(starterCode(lessonById("hello_world"), "python"), "# TODO: write a program that prints the expected output shown in the lesson.\n");
   });
 });

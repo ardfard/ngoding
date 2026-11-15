@@ -1,14 +1,14 @@
-// Learn UI: pick a lesson, read about the concept, then run (and tweak) its
-// example in the selected language. Each lesson is one file per language under
+// Learn UI: pick a lesson, read about the concept, then write a program for it
+// in the selected language, starting from a starter file (no solution). Each lesson is one file per language under
 // ~/learn, opened in the same editor and VM as Exercise but with its own saved
 // VM snapshot (vm:learn). The sidebar shows the expected output; Check runs the
-// example and compares (see learn-check.js), and lessons that pass get a check mark.
+// student's program and compares (see learn-check.js), and lessons that pass get a check mark.
 
 import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
 import { createEditor } from "./editor.js";
 import { CHECK_OUT, CHECK_SCRIPT, CHECK_STATUS, checkCommand, checkScript, compareOutput, parseStatus } from "./learn-check.js";
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
-import { LESSONS, lessonById, lessonPath } from "./lessons.js";
+import { LESSONS, lessonById, lessonPath, starterCode } from "./lessons.js";
 import { createVmStatus } from "./vm-persist.js";
 import { createWorkspaceLayout } from "./workspace-layout.js";
 
@@ -37,7 +37,7 @@ export async function startLearn(vm) {
   const docs = new Map(LESSONS.map((lesson) => [lesson, {
     id: lesson.id,
     pathFor: (lang) => lessonPath(lesson, lang),
-    templateFor: (lang) => lesson.code[lang.id],
+    templateFor: (lang) => starterCode(lesson, lang.id),
   }]));
   const solved = readSolved();
   // The check in progress ({} identity token), or null.
@@ -156,11 +156,11 @@ export async function startLearn(vm) {
   }
 
   // Make sure the lesson file in the VM is what the student sees: save the
-  // editor, or write the original example if it was never opened.
+  // editor, or write the starter if it was never opened.
   async function ensureLessonFile(path) {
     if (editor.currentPath() === path) return editor.save();
     if ((await vm.readFile(path)) !== null) return true;
-    return vm.writeFile(path, current.code[lang.id]);
+    return vm.writeFile(path, starterCode(current, lang.id));
   }
 
   async function check() {
@@ -273,7 +273,7 @@ export async function startLearn(vm) {
     editor.focus();
   };
   $("reset").onclick = async () => {
-    if (!confirm("Delete all files in the VM, including your edited examples?")) return;
+    if (!confirm("Delete all files in the VM, including your lesson files?")) return;
     localStorage.removeItem(SOLVED_KEY);
     await vm.reset();
     location.reload();

@@ -1,16 +1,18 @@
 // Runs every Learn example with the local toolchains and checks that it prints
 // the lesson's expected output. Mirrors the VM's Run commands (languages.js).
-// Usage: node test/lessons-run.mjs [lesson-id-or-lang ...]
+// Usage: node test/lessons-run.mjs [--starters] [lesson-id-or-lang ...]
+// --starters builds and runs the starter files instead: each must run and print nothing.
 // Missing toolchains are reported and skipped. TypeScript uses $TSC, else
 // `npx -p typescript@4.8 tsc` (the VM ships tsc 4.8).
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LESSONS, lessonFileName } from "../public/lessons.js";
+import { LESSONS, lessonFileName, starterCode } from "../public/lessons.js";
 import { LANGUAGES } from "../public/languages.js";
 
-const filters = process.argv.slice(2);
+const starters = process.argv.includes("--starters");
+const filters = process.argv.slice(2).filter((a) => a !== "--starters");
 const dir = mkdtempSync(join(tmpdir(), "ngoding-learn-"));
 const bin = join(dir, "a.out");
 
@@ -25,7 +27,8 @@ function command(lang, file) {
     case "cpp": return has("g++") && `g++ -Wall -Werror -O2 -std=c++17 -o ${bin} ${file} && ${bin}`;
     case "go": return has("go") && `cd ${dir} && GO111MODULE=off go run ${file}`;
     // Examples should compile cleanly: the learner sees every warning.
-    case "rust": return has("rustc") && `rustc -D warnings -O -o ${bin} ${file} && ${bin}`;
+    // (Starters keep the example's imports, so they warn about unused ones.)
+    case "rust": return has("rustc") && `rustc ${starters ? "" : "-D warnings "}-O -o ${bin} ${file} && ${bin}`;
     case "haskell": return has("runghc") && `runghc ${file}`;
     case "javascript": return has("node") && `node ${file}`;
     case "typescript":
@@ -44,16 +47,16 @@ for (const lesson of LESSONS) {
       skipped.add(lang.id);
       continue;
     }
-    writeFileSync(file, lesson.code[lang.id]);
+    writeFileSync(file, starters ? starterCode(lesson, lang.id) : lesson.code[lang.id]);
     const r = spawnSync("sh", ["-c", cmd], { encoding: "utf8", timeout: 180_000 });
-    if (r.status === 0 && r.stdout === lesson.output) {
+    if (r.status === 0 && r.stdout === (starters ? "" : lesson.output)) {
       passed++;
       continue;
     }
     failed++;
     console.log(`✗ ${lesson.id} [${lang.id}] exit ${r.status}`);
     if (r.stderr) console.log(r.stderr.trim().split("\n").slice(0, 15).map((l) => `    ${l}`).join("\n"));
-    console.log(`  expected:\n${lesson.output.replace(/^/gm, "    | ")}\n  got:\n${r.stdout.replace(/^/gm, "    | ")}`);
+    if (!starters) console.log(`  expected:\n${lesson.output.replace(/^/gm, "    | ")}\n  got:\n${r.stdout.replace(/^/gm, "    | ")}`);
   }
 }
 rmSync(dir, { recursive: true, force: true });

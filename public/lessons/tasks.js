@@ -5,7 +5,7 @@ export default [
     id: "files",
     title: "Reading & Writing Files",
     intro: `<p>Files are the most common way programs keep data. The usual steps: <b>open</b> a file in a mode (write, append, read), <b>read or write</b>, then <b>close</b> it so the data is flushed to disk.</p>
-<p>This example writes a file in <code>/tmp</code>, appends to it, reads it back whole and line by line, then deletes it. Most languages also have one-call helpers that open, write and close for you (Python's <code>Path.write_text</code>, Go's <code>os.WriteFile</code>, Rust's <code>fs::write</code>, Haskell's <code>writeFile</code>).</p>`,
+<p>Write a file in <code>/tmp</code>, append to it, read it back whole and line by line, then delete it. Most languages also have one-call helpers that open, write and close for you (Python's <code>Path.write_text</code>, Go's <code>os.WriteFile</code>, Rust's <code>fs::write</code>, Haskell's <code>writeFile</code>).</p>`,
     output: `wrote /tmp/ngoding_notes.txt
 size: 34 bytes
 1: first line
@@ -700,7 +700,7 @@ console.log("removed:", !fs.existsSync(base));
     id: "json",
     title: "JSON",
     intro: `<p><b>JSON</b> is the most common format for sending data between programs: objects <code>{"key": value}</code>, arrays <code>[1, 2]</code>, strings, numbers, <code>true</code>/<code>false</code> and <code>null</code>. <b>Parsing</b> (decoding) turns JSON text into the language's values; <b>encoding</b> turns values back into text.</p>
-<p>Python, Go, JavaScript and TypeScript have JSON in their standard library. C, C++, Rust and Haskell don't; real projects use a library (<code>cJSON</code>, <code>nlohmann/json</code>, <code>serde_json</code>, <code>aeson</code>). Those examples include a small hand-written parser instead, which also shows how parsing works: look at the next character, decide what kind of value starts there, and recurse for nested values.</p>`,
+<p>Python, Go, JavaScript and TypeScript have JSON in their standard library. C, C++, Rust and Haskell don't; real projects use a library (<code>cJSON</code>, <code>nlohmann/json</code>, <code>serde_json</code>, <code>aeson</code>). In those, write a small parser yourself, which also shows how parsing works: look at the next character, decide what kind of value starts there, and recurse for nested values.</p>`,
     output: `name: Ada
 age: 36
 languages: C, Haskell
@@ -1352,7 +1352,7 @@ console.log("encoded:", JSON.stringify(updated));
     id: "parsing_numbers",
     title: "Parsing Numbers",
     intro: `<p>Input from files, the command line or the network arrives as text. To do arithmetic you first <b>parse</b> the text into a number, and you must handle text that isn't a number.</p>
-<p>Watch out for lenient parsers: C's <code>atoi("12abc")</code>, C++'s <code>std::stoi</code> and JavaScript's <code>parseInt</code> all return <code>12</code> and ignore the rest. The examples check that the <i>whole</i> string was used. Going the other way, formatting a number as text, can also pick a base, such as hexadecimal.</p>`,
+<p>Watch out for lenient parsers: C's <code>atoi("12abc")</code>, C++'s <code>std::stoi</code> and JavaScript's <code>parseInt</code> all return <code>12</code> and ignore the rest. Check that the <i>whole</i> string was used. Going the other way, formatting a number as text, can also pick a base, such as hexadecimal.</p>`,
     output: `42 + 1 = 43
 3.5 * 2 = 7.0
 ff in hex = 255
@@ -2295,7 +2295,7 @@ if (isMainThread) {
     id: "sockets",
     title: "TCP Sockets",
     intro: `<p>A <b>socket</b> is one end of a network connection. With TCP, a <b>server</b> socket <i>binds</i> to an address and port, <i>listens</i>, and <i>accepts</i> connections. A <b>client</b> socket <i>connects</i> to that address, and then both sides send and receive bytes.</p>
-<p>To keep it to one program, this example is both: the server listens on <code>127.0.0.1</code> (this machine), the client connects to it, sends <code>ping</code> and gets <code>pong</code> back. Port <code>0</code> asks the OS for any free port. Connecting works before the server calls <code>accept</code>: the OS queues the connection. Haskell's standard library has no sockets (real code uses the <code>network</code> package), so that example calls the C functions directly through the FFI.</p>`,
+<p>To keep it to one program, yours is both: the server listens on <code>127.0.0.1</code> (this machine), the client connects to it, sends <code>ping</code> and gets <code>pong</code> back. Port <code>0</code> asks the OS for any free port. Connecting works before the server calls <code>accept</code>: the OS queues the connection. Haskell's standard library has no sockets (real code uses the <code>network</code> package), so call the C functions directly through the FFI (the starter declares them for you).</p>`,
     output: `server listening on 127.0.0.1
 client sent: ping
 server got: ping
