@@ -1,7 +1,8 @@
 // Learn UI: pick a lesson, read about the concept, then write a program for it
 // in the selected language, starting from a starter file (no solution). Each lesson is one file per language under
 // ~/learn, opened in the same editor and VM as Exercise but with its own saved
-// VM snapshot (vm:learn). The sidebar shows the expected output; Check runs the
+// VM snapshot (vm:learn). The sidebar shows the expected output (and, behind
+// "Show hint", the reference example); Check runs the
 // student's program and compares (see learn-check.js), and lessons that pass get a check mark.
 
 import { FitAddon, init, Terminal } from "/vendor/ghostty-web/ghostty-web.js";
@@ -123,10 +124,16 @@ export async function startLearn(vm) {
     $("problem").innerHTML = `<h2></h2>${current.intro}
 <p class="lesson-file">${lang.label} · <code></code>${solved.has(current.id) ? ' · <span class="lesson-solved">✓ solved</span>' : ""}</p>
 <h3>Expected output</h3>
-<pre class="lesson-output"></pre>`;
+<pre class="lesson-output"></pre>
+<details class="lesson-hint">
+  <summary>Stuck? Show hint</summary>
+  <p>One way to write it in ${lang.label}. Try it yourself first; type it out rather than copying.</p>
+  <pre class="lesson-example"></pre>
+</details>`;
     $("problem").querySelector("h2").textContent = current.title;
     $("problem").querySelector(".lesson-file code").textContent = file;
     $("problem").querySelector(".lesson-output").textContent = current.output;
+    $("problem").querySelector(".lesson-example").textContent = current.code[lang.id];
     $("problem").scrollTop = 0;
 
     const prev = LESSONS[idx - 1];

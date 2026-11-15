@@ -56,6 +56,9 @@ async function write(src) {
 if (!targets.length) {
   await open("hello_world", "python");
   ok((await page.locator(".cm-content").textContent()).includes("TODO"), "lesson opens a starter");
+  ok(!(await page.locator(".lesson-hint").evaluate((d) => d.open)), "hint starts hidden");
+  await page.click(".lesson-hint summary");
+  ok((await page.locator(".lesson-example").textContent()).includes('print("Hello, world!")'), "hint shows the example");
   let r = await check();
   ok(r.startsWith("✗"), `starter fails: ${r}`);
   await write('print("Hello, world!")\n');

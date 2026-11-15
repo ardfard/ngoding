@@ -476,6 +476,10 @@ article.lesson h3 {
 }
 article.lesson .lesson-output { margin: 0; white-space: pre; }
 article.lesson .lesson-solved { color: var(--accent); }
+article.lesson .lesson-hint { margin-top: 16px; }
+article.lesson .lesson-hint summary { font: 11px "IBM Plex Mono", ui-monospace, monospace; }
+article.lesson .lesson-hint p { margin: 8px 0; }
+article.lesson .lesson-example { margin: 0; white-space: pre; overflow-x: auto; color: var(--fg); }
 button#check.checking { background: none; color: var(--accent); border: 1px solid var(--accent); }
 
 .lesson-nav { display: flex; gap: 8px; }
