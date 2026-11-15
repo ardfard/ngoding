@@ -20,6 +20,61 @@ const LAYOUT_ICON = {
 
 const $ = (id) => document.getElementById(id);
 
+const SIDEBAR_KEY = "ngoding.sidebar";
+const SIDEBAR_DEFAULT = 260;
+const SIDEBAR_MIN = 200;
+const sidebarMax = () => Math.max(SIDEBAR_MIN, Math.min(720, window.innerWidth * 0.6));
+
+/**
+ * Makes the sidebar width draggable via #sidebar-resize, if the page has one.
+ * The width lives in --sidebar-width on <body> and is saved in localStorage.
+ */
+function setupSidebarResize() {
+  const handle = $("sidebar-resize");
+  if (!handle) return;
+  let width = Number(localStorage.getItem(SIDEBAR_KEY)) || SIDEBAR_DEFAULT;
+
+  function setWidth(px, save = false) {
+    width = Math.round(Math.min(sidebarMax(), Math.max(SIDEBAR_MIN, px)));
+    document.body.style.setProperty("--sidebar-width", `${width}px`);
+    handle.setAttribute("aria-valuenow", String(width));
+    if (save) localStorage.setItem(SIDEBAR_KEY, String(width));
+  }
+
+  let dragging = false;
+  handle.onpointerdown = (e) => {
+    dragging = true;
+    handle.classList.add("dragging");
+    document.body.classList.add("sidebar-resizing");
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+  handle.onpointermove = (e) => {
+    if (dragging) setWidth(e.clientX - $("sidebar").getBoundingClientRect().left);
+  };
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("sidebar-resizing");
+    localStorage.setItem(SIDEBAR_KEY, String(width));
+  };
+  handle.onpointerup = endDrag;
+  handle.onpointercancel = endDrag;
+  handle.ondblclick = () => setWidth(SIDEBAR_DEFAULT, true);
+  handle.onkeydown = (e) => {
+    const step = e.shiftKey ? 64 : 16;
+    if (e.key === "ArrowLeft") setWidth(width - step, true);
+    else if (e.key === "ArrowRight") setWidth(width + step, true);
+    else return;
+    e.preventDefault();
+  };
+  window.addEventListener("resize", () => setWidth(width));
+
+  handle.setAttribute("aria-valuemin", String(SIDEBAR_MIN));
+  setWidth(width);
+}
+
 /**
  * Restores the saved layout and wires up its controls. onChange(mode) runs
  * after every layout change, including the initial one.
@@ -117,6 +172,7 @@ export function createWorkspaceLayout({ onChange = () => {} } = {}) {
     localStorage.setItem("ngoding.split", String(editorShare));
   };
 
+  setupSidebarResize();
   setEditorShare(editorShare);
   set(mode);
   return {
