@@ -8,6 +8,7 @@ import { V86 } from "/vendor/v86/libv86.mjs";
 import { MEMORY_SIZE } from "./v86-config.js";
 import { chooseBootImage } from "./vm-image.js";
 import * as store from "./store.js";
+import { parseLs } from "./vm-shared.js";
 
 const LEGACY_SAVE_KEY = "snapshot";
 let saveKey = "vm:problems";
@@ -259,12 +260,7 @@ export function type(text) {
 export async function listDir(path) {
   const { status, data } = await agent("ls", path);
   if (status !== 0) return null;
-  const text = fromBase64(data);
-  if (!text) return [];
-  return text.split("\n").filter(Boolean).map((line) => {
-    const [type, name] = line.split("\t");
-    return { type: type === "d" ? "dir" : "file", name };
-  });
+  return parseLs(fromBase64(data));
 }
 
 export async function mkdir(path) {
