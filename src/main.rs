@@ -70,6 +70,13 @@ const APP: &[(&str, &str, &[u8])] = embed! {
     "/share-pack.js" => "public/share-pack.js",
     "/share.js" => "public/share.js",
     "/s" => "public/share.html",
+    "/base.js" => "public/base.js",
+    "/vm-shared.js" => "public/vm-shared.js",
+    "/vm-unkernel.js" => "public/vm-unkernel.js",
+    // unkernel's browser SDK; web.mjs loads the kernel from next to itself.
+    "/unkernel/web.mjs" => "node_modules/unkernel/dist/web.mjs",
+    "/unkernel/_chunks/core.mjs" => "node_modules/unkernel/dist/_chunks/core.mjs",
+    "/unkernel/unkernel-alpine.wasm" => "node_modules/unkernel/dist/unkernel-alpine.wasm",
     "/play-sessions.js" => "public/play-sessions.js",
     "/exercise-progress.js" => "public/exercise-progress.js",
     "/play" => "public/play.html",
@@ -155,7 +162,82 @@ fn is_immutable(url_path: &str) -> bool {
             .and_then(|n| n.strip_suffix(".bin.zst"))
             .is_some_and(|h| !h.is_empty() && h.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
     };
+    let disk = |name: &str| {
+        name.strip_prefix("debian-")
+            .and_then(|n| n.strip_suffix(".ext4"))
+            .is_some_and(|h| !h.is_empty() && h.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
+    };
     url_path.strip_prefix("/v86/").is_some_and(|rest| hashed(rest, "flat/") || hashed(rest, "state-"))
+        || url_path.strip_prefix("/unkernel-image/").is_some_and(disk)
+}
+
+// The same app on unkernel lives under this prefix: same pages and modules,
+// except vm.js, which is the unkernel VM.
+const UNK: &str = "/新";
+
+// "/新/<file>" -> the embedded file it reuses, for a decoded URL path.
+fn unkernel_alias(path: &str) -> Option<&'static str> {
+    let rest = path.strip_prefix(UNK)?;
+    let rest = if rest.is_empty() { "/" } else { rest };
+    if !rest.starts_with('/') || ["/v86/", "/api/", "/unkernel"].iter().any(|p| rest.starts_with(p)) {
+        return None;
+    }
+    let rest = if rest == "/vm.js" { "/vm-unkernel.js" } else { rest };
+    EMBEDDED.get_key_value(rest).map(|(k, _)| *k)
+}
+
+// Absolute app links in a page (scripts, nav) move under the prefix; shared
+// assets and APIs stay where they are.
+fn rewrite_html(html: &str) -> String {
+    const SHARED: [&str; 5] = ["style.css", "fonts/", "vendor/", "api/", "unkernel"];
+    let mut out = String::with_capacity(html.len() + 256);
+    let mut rest = html;
+    while let Some(i) = rest.find("=\"/") {
+        let (head, tail) = rest.split_at(i + 3);
+        out.push_str(head);
+        if !SHARED.iter().any(|p| tail.starts_with(p)) {
+            out.push_str(&UNK[1..]);
+            out.push('/');
+        }
+        rest = tail;
+    }
+    out.push_str(rest);
+    out
+}
+
+// Rewritten pages for the unkernel app, keyed by the embedded URL.
+static UNK_HTML: LazyLock<HashMap<&str, (String, String)>> = LazyLock::new(|| {
+    EMBEDDED
+        .iter()
+        .filter(|(_, f)| content_type(f.path).starts_with("text/html"))
+        .map(|(url, f)| {
+            let body = rewrite_html(std::str::from_utf8(f.body).unwrap_or_default());
+            let etag = format!("\"u{}", &f.etag[1..]);
+            (*url, (body, etag))
+        })
+        .collect()
+});
+
+// One "bytes=" range -> inclusive (start, end) within len. Multiple ranges and
+// unsatisfiable ones are None.
+fn parse_range(value: &str, len: u64) -> Option<(u64, u64)> {
+    let spec = value.strip_prefix("bytes=")?;
+    if spec.contains(',') || len == 0 {
+        return None;
+    }
+    let (a, b) = spec.split_once('-')?;
+    let (start, end) = if a.is_empty() {
+        let n: u64 = b.parse().ok()?;
+        if n == 0 {
+            return None;
+        }
+        (len.saturating_sub(n), len - 1)
+    } else {
+        let start: u64 = a.parse().ok()?;
+        let end = if b.is_empty() { len - 1 } else { b.parse::<u64>().ok()?.min(len - 1) };
+        (start, end)
+    };
+    (start <= end && start < len).then_some((start, end))
 }
 
 // Tokens are signed with this secret; keep it stable across restarts so
@@ -259,17 +341,42 @@ fn safe_join(dir: &Path, rel: &str) -> Option<PathBuf> {
 
 enum Source {
     Embedded(&'static [u8]),
+    Owned(String),
     Disk(PathBuf),
 }
 
-async fn static_file(image_dir: &Path, method: Method, uri: Uri, headers: HeaderMap) -> Response {
-    let url_path = uri.path();
+// Where the VM images live on disk: v86's (/v86/) and unkernel's (/unkernel-image/).
+#[derive(Clone, Copy)]
+struct ImageDirs {
+    v86: &'static Path,
+    unkernel: &'static Path,
+}
+
+async fn static_file(dirs: ImageDirs, method: Method, uri: Uri, headers: HeaderMap) -> Response {
+    let raw_path = uri.path();
+    let Ok(decoded) = percent_decode_str(raw_path).decode_utf8() else {
+        return (StatusCode::NOT_FOUND, "not found").into_response();
+    };
+    let url_path: &str = &decoded;
     let not_found = || (StatusCode::NOT_FOUND, "not found").into_response();
+    if url_path == UNK {
+        return Redirect::permanent(&format!("{raw_path}/")).into_response();
+    }
 
     let (path, etag, len, source) = if let Some(file) = EMBEDDED.get(url_path) {
         (file.path.to_path_buf(), file.etag.clone(), file.body.len() as u64, Source::Embedded(file.body))
+    } else if let Some(key) = unkernel_alias(url_path) {
+        let file = &EMBEDDED[key];
+        match UNK_HTML.get(key) {
+            Some((body, etag)) => (file.path.to_path_buf(), etag.clone(), body.len() as u64, Source::Owned(body.clone())),
+            None => (file.path.to_path_buf(), file.etag.clone(), file.body.len() as u64, Source::Embedded(file.body)),
+        }
     } else {
-        let Some(path) = url_path.strip_prefix("/v86/").and_then(|rel| safe_join(image_dir, rel)) else {
+        let disk = raw_path
+            .strip_prefix("/v86/")
+            .and_then(|rel| safe_join(dirs.v86, rel))
+            .or_else(|| raw_path.strip_prefix("/unkernel-image/").and_then(|rel| safe_join(dirs.unkernel, rel)));
+        let Some(path) = disk else {
             return not_found();
         };
         let Ok(meta) = tokio::fs::metadata(&path).await else { return not_found() };
@@ -286,16 +393,50 @@ async fn static_file(image_dir: &Path, method: Method, uri: Uri, headers: Header
     if headers.get(header::IF_NONE_MATCH).is_some_and(|v| v.as_bytes() == etag.as_bytes()) {
         return (StatusCode::NOT_MODIFIED, common).into_response();
     }
-    let len = [(header::CONTENT_TYPE, content_type(&path).to_string()), (header::CONTENT_LENGTH, len.to_string())];
+    let ctype = (header::CONTENT_TYPE, content_type(&path).to_string());
+
+    // The unkernel disk is read lazily with Range requests (openHttpDisk).
+    if let Source::Disk(file_path) = &source {
+        let ranges = [(header::ACCEPT_RANGES, "bytes".to_string())];
+        if let Some(range) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
+            let Some((start, end)) = parse_range(range, len) else {
+                let unsat = [(header::CONTENT_RANGE, format!("bytes */{len}"))];
+                return (StatusCode::RANGE_NOT_SATISFIABLE, common, unsat).into_response();
+            };
+            let part = [
+                ctype,
+                (header::CONTENT_LENGTH, (end - start + 1).to_string()),
+                (header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}")),
+            ];
+            if method == Method::HEAD {
+                return (StatusCode::PARTIAL_CONTENT, common, ranges, part).into_response();
+            }
+            use tokio::io::{AsyncReadExt, AsyncSeekExt};
+            let Ok(mut file) = tokio::fs::File::open(file_path).await else { return not_found() };
+            if file.seek(std::io::SeekFrom::Start(start)).await.is_err() {
+                return not_found();
+            }
+            let body = Body::from_stream(ReaderStream::new(file.take(end - start + 1)));
+            return (StatusCode::PARTIAL_CONTENT, common, ranges, part, body).into_response();
+        }
+        let full = [ctype, (header::CONTENT_LENGTH, len.to_string())];
+        if method == Method::HEAD {
+            return (common, ranges, full).into_response();
+        }
+        return match tokio::fs::File::open(file_path).await {
+            Ok(file) => (common, ranges, full, Body::from_stream(ReaderStream::new(file))).into_response(),
+            Err(_) => not_found(),
+        };
+    }
+
+    let full = [ctype, (header::CONTENT_LENGTH, len.to_string())];
     if method == Method::HEAD {
-        return (common, len).into_response();
+        return (common, full).into_response();
     }
     match source {
-        Source::Embedded(body) => (common, len, Body::from(body)).into_response(),
-        Source::Disk(path) => match tokio::fs::File::open(&path).await {
-            Ok(file) => (common, len, Body::from_stream(ReaderStream::new(file))).into_response(),
-            Err(_) => not_found(),
-        },
+        Source::Embedded(body) => (common, full, Body::from(body)).into_response(),
+        Source::Owned(body) => (common, full, Body::from(body)).into_response(),
+        Source::Disk(_) => unreachable!(),
     }
 }
 
@@ -303,6 +444,10 @@ async fn static_file(image_dir: &Path, method: Method, uri: Uri, headers: Header
 async fn main() -> std::io::Result<()> {
     let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080);
     let image_dir: &Path = Box::leak(PathBuf::from(std::env::var("NGODING_IMAGE_DIR").unwrap_or("public/v86".into())).into_boxed_path());
+    let unk_image_dir: &Path = Box::leak(
+        PathBuf::from(std::env::var("NGODING_UNKERNEL_IMAGE_DIR").unwrap_or("public/unkernel-image".into())).into_boxed_path(),
+    );
+    let dirs = ImageDirs { v86: image_dir, unkernel: unk_image_dir };
     if !image_dir.join("version.json").is_file() {
         eprintln!("warning: no VM image in {} (set NGODING_IMAGE_DIR)", image_dir.display());
     }
@@ -352,7 +497,7 @@ async fn main() -> std::io::Result<()> {
             get(cloud::get_exercise_progress).put(cloud::put_exercise_progress),
         )
         .route("/s/{id}", get(share_landing))
-        .fallback(move |req: Request| static_file(image_dir, req.method().clone(), req.uri().clone(), req.headers().clone()))
+        .fallback(move |req: Request| static_file(dirs, req.method().clone(), req.uri().clone(), req.headers().clone()))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     println!("ngoding PoC on http://localhost:{port}");
@@ -393,5 +538,49 @@ mod tests {
         assert!(EMBEDDED["/vendor/v86/libv86.mjs"].body.len() > 100_000);
         assert_eq!(content_type(EMBEDDED["/fonts/ibm-plex-mono-400.woff2"].path), "font/woff2");
         assert!(EMBEDDED["/fonts/ibm-plex-sans-400.woff2"].body.starts_with(b"wOF2"));
+    }
+
+    #[test]
+    fn unkernel_app_reuses_the_app_files_but_its_own_vm() {
+        assert_eq!(unkernel_alias("/新/vm.js"), Some("/vm-unkernel.js"));
+        assert_eq!(unkernel_alias("/新/play.js"), Some("/play.js"));
+        assert_eq!(unkernel_alias("/新/lessons/types.js"), Some("/lessons/types.js"));
+        assert_eq!(unkernel_alias("/新/"), Some("/"));
+        assert_eq!(unkernel_alias("/新/play"), Some("/play"));
+        assert_eq!(unkernel_alias("/新/v86/version.json"), None);
+        assert_eq!(unkernel_alias("/新/api/session"), None);
+        assert_eq!(unkernel_alias("/新/nope.js"), None);
+        assert_eq!(unkernel_alias("/新x/play"), None);
+        assert_eq!(unkernel_alias("/play"), None);
+        assert!(EMBEDDED["/unkernel/web.mjs"].body.len() > 10_000);
+        assert_eq!(content_type(EMBEDDED["/unkernel/unkernel-alpine.wasm"].path), "application/wasm");
+    }
+
+    #[test]
+    fn unkernel_html_links_stay_under_the_prefix() {
+        let html = r#"<script src="/play.js"></script><a href="/">x</a><a href="/learn">l</a><link href="/style.css"><link href="/fonts/a.woff2"><script src="/vendor/x.js"></script>"#;
+        assert_eq!(
+            rewrite_html(html),
+            r#"<script src="/新/play.js"></script><a href="/新/">x</a><a href="/新/learn">l</a><link href="/style.css"><link href="/fonts/a.woff2"><script src="/vendor/x.js"></script>"#
+        );
+    }
+
+    #[test]
+    fn ranges() {
+        assert_eq!(parse_range("bytes=0-0", 10), Some((0, 0)));
+        assert_eq!(parse_range("bytes=5-", 10), Some((5, 9)));
+        assert_eq!(parse_range("bytes=2-100", 10), Some((2, 9)));
+        assert_eq!(parse_range("bytes=-3", 10), Some((7, 9)));
+        assert_eq!(parse_range("bytes=10-", 10), None);
+        assert_eq!(parse_range("bytes=5-2", 10), None);
+        assert_eq!(parse_range("bytes=0-1,4-5", 10), None);
+        assert_eq!(parse_range("items=0-1", 10), None);
+    }
+
+    #[test]
+    fn hashed_unkernel_disks_are_immutable() {
+        assert!(is_immutable("/unkernel-image/debian-0123456789abcdef.ext4"));
+        assert!(!is_immutable("/unkernel-image/version.json"));
+        assert!(!is_immutable("/unkernel-image/debian-.ext4"));
     }
 }
