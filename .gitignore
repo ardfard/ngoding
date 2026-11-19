@@ -18,3 +18,5 @@ data/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+image-unkernel/build/
+public/unkernel-image/
