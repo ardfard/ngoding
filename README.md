@@ -67,6 +67,8 @@ npm run test:e2e      # with the server running: boots the VM in headless Chromi
                       # and that a reload is served from cache
 npm run test:e2e:learn # with the server running: Check in Learn passes and fails as it should;
                       # `node test/e2e-learn.mjs /usr/bin/chromium json:rust` checks given lessons
+npm run build:image:unkernel # docker (riscv64 emulation): the /新 disk, public/unkernel-image/ (~20 min)
+npm run test:e2e:unkernel    # with the server running: /新 play, toolchains, saving, Exercise, Learn
 ```
 
 ## Deploy
@@ -238,6 +240,58 @@ page resumes exactly where the student was, including running programs, in about
 - **When a save is discarded:** if the image is rebuilt (the snapshot name changes),
   the session changes (**Reset** on Problems), or you switch pages (each page has its
   own key), so restored work always matches the right context.
+
+## `/新`: the same app on unkernel
+
+`/新/`, `/新/play`, `/新/exercise` and `/新/learn` are the same pages running on
+[unkernel](https://github.com/pithings/unkernel) instead of v86: the Linux kernel
+compiled to WebAssembly, with riscv64 programs on an emulator that JIT-compiles
+them to Wasm. It is 64-bit, boots in about 2.5 s with no memory snapshot, and runs
+compiled code several times faster than v86 (see
+`docs/research/2026-11-17-unkernel.md`).
+
+How it differs from the v86 app:
+
+- **Routing:** the server serves the same embedded files under `/新`, rewrites
+  absolute links in the HTML to stay under the prefix, and serves
+  `public/vm-unkernel.js` as `/新/vm.js` (same exports as `vm.js`). `public/base.js`
+  tells the two copies apart in the browser.
+- **Image:** `npm run build:image:unkernel` (`image-unkernel/`) builds Debian trixie
+  riscv64 with the same tools into one ext4 disk,
+  `public/unkernel-image/debian-<hash>.ext4` (6.2 GB, about 3.4 GB on disk, sparse),
+  plus `version.json`. It needs docker with riscv64 emulation (qemu binfmt) and
+  takes about 20 minutes. The browser reads the disk lazily with HTTP Range requests.
+- **Guest access:** PID 1 (`image-unkernel/init.sh`) keeps unkernel's `kwtty`
+  running. The student's shell is a pty session (`su -l user`) and file operations
+  are `exec()` calls; `image/agent.sh` isn't used.
+- **Saving:** writes go to a copy-on-write overlay that the SDK keeps in IndexedDB,
+  one per save key (`unk:vm:play:<id>`, `unk:vm:exercise`, `unk:vm:learn`). Saving
+  flushes the guest's file systems into it. Running programs don't survive a reload;
+  files do.
+- **Separate state:** the play-session list is `ngoding.新.play.sessions`. Cloud
+  saves, sign-in and shares are off, because they carry v86 snapshots.
+- **Browsers:** needs JSPI (Chrome/Edge 137+, Firefox 153+, Safari 27+).
+
+First runs on a fresh session (headless Chromium, local server,
+`npm run test:e2e:unkernel`):
+
+| Step | Time |
+|---|---|
+| Page to shell | 2.5 s |
+| `gcc main.c && ./main` | 4.6 s |
+| `python3` + numpy | 3.9 s |
+| `go run hello.go` (std library cache prebuilt in the image) | 14.5 s, then 0.9 s |
+| `rustc hello.rs` | 23.6 s |
+| `runghc Hello.hs` | 17 s |
+| `uv init && uv add rich && uv run` (offline) | 7 s |
+| `tsc` + `node` | 195 s |
+
+First runs include fetching each tool from the disk image. `tsc` is slow because
+Node's own JIT output runs on the riscv64 emulator.
+
+To deploy it, copy `public/unkernel-image/` (keep it sparse: `rsync --sparse`) to
+the server and set `NGODING_UNKERNEL_IMAGE_DIR` (default `public/unkernel-image`,
+served at `/unkernel-image/` with Range support).
 
 ## Limits and next steps for production
 
