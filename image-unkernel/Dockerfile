@@ -8,7 +8,8 @@
 FROM --platform=linux/riscv64 debian:trixie AS rootfs
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_VERSION=0.13.6
-ARG TYPES_NODE_VERSION=22.15.0
+# @types/node 18.11 still works with trixie's tsc 4.9 and has no undici-types dependency
+ARG TYPES_NODE_VERSION=18.11.18
 # MINIMAL=1: base system only (a quick boot check, no toolchains)
 ARG MINIMAL=
 
@@ -58,6 +59,10 @@ RUN useradd -m -u 1000 -s /bin/bash user \
     && chown -R user:user /home/user \
     && echo ngoding > /etc/hostname \
     && printf '/dev/wda / ext4 rw,relatime 0 1\n' > /etc/fstab
+
+# Go builds its standard library into the user's cache on first use, which
+# takes minutes under emulation: do it once here.
+RUN if [ -z "$MINIMAL" ]; then runuser -u user -- env HOME=/home/user sh -c 'cd /tmp && go build std'; fi
 
 # mke2fs runs natively; COPY --from keeps owners, modes and setuid bits.
 FROM debian:trixie AS disk

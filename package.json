@@ -13,7 +13,8 @@
     "test:e2e:learn": "node test/e2e-learn.mjs",
     "test:lessons": "node test/lessons-run.mjs",
     "test:unit": "node --test test/*.test.mjs",
-    "build:image:unkernel": "image-unkernel/build.sh"
+    "build:image:unkernel": "image-unkernel/build.sh",
+    "test:e2e:unkernel": "node test/e2e-unkernel.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
