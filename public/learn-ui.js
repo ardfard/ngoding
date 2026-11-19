@@ -11,6 +11,7 @@ import { CHECK_OUT, CHECK_SCRIPT, CHECK_STATUS, checkCommand, checkScript, compa
 import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./languages.js";
 import { LESSONS, lessonById, lessonPath, starterCode } from "./lessons.js";
 import { createVmStatus } from "./vm-persist.js";
+import { homeHref } from "./base.js";
 import { createWorkspaceLayout } from "./workspace-layout.js";
 
 const SOLVED_KEY = "ngoding.learn.solved";
@@ -296,7 +297,7 @@ export async function startLearn(vm) {
     if (editor.hasUnsaved() || vm.isDirty() || vm.isSaving()) e.preventDefault();
   });
   // Leaving through the brand link: flush edits and the VM first.
-  for (const a of document.querySelectorAll('a[href="/"]')) {
+  for (const a of document.querySelectorAll(`a[href="${homeHref()}"]`)) {
     a.addEventListener("click", (e) => {
       if (!booted || (!editor.hasUnsaved() && !vm.isDirty() && !vm.isSaving())) return;
       e.preventDefault();

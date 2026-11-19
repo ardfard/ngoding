@@ -1,8 +1,11 @@
-export const SESSIONS_KEY = "ngoding.play.sessions";
+import { IS_UNKERNEL } from "./base.js";
+
+// The unkernel app (/新) keeps its own list and saves.
+export const SESSIONS_KEY = IS_UNKERNEL ? "ngoding.新.play.sessions" : "ngoding.play.sessions";
 export const LEGACY_PLAY_SAVE_KEY = "vm:play";
 
 export function playSaveKey(id) {
-  return `vm:play:${id}`;
+  return `${IS_UNKERNEL ? "unk:" : ""}vm:play:${id}`;
 }
 
 function isSession(v) {

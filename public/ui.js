@@ -20,6 +20,7 @@ import { DEFAULT_LANG, LANG_STORAGE_KEY, LANGUAGES, languageById } from "./langu
 import * as store from "./store.js";
 import { createWorkspaceLayout } from "./workspace-layout.js";
 import { createVmStatus } from "./vm-persist.js";
+import { homeHref } from "./base.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -247,7 +248,7 @@ export async function startApp(vm) {
     if (editor.hasUnsaved() || vm.isDirty() || vm.isSaving()) e.preventDefault();
   });
 
-  for (const a of document.querySelectorAll('a[href="/"]')) {
+  for (const a of document.querySelectorAll(`a[href="${homeHref()}"]`)) {
     a.addEventListener("click", (e) => {
       if (!booted) return;
       if (!editor.hasUnsaved() && !vm.isDirty() && !vm.isSaving()) return;

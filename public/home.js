@@ -20,6 +20,7 @@ import {
   upsertLocalSession,
 } from "./play-sessions.js";
 import * as store from "./store.js";
+import { IS_UNKERNEL, appHref } from "./base.js";
 
 let signedInUser = null;
 
@@ -72,7 +73,7 @@ function relativeTime(ms) {
 
 function openSession(id) {
   touchSession(id);
-  location.href = `/play?s=${encodeURIComponent(id)}`;
+  location.href = appHref(`/play?s=${encodeURIComponent(id)}`);
 }
 
 function span(className, text) {
@@ -109,6 +110,8 @@ function renderSessions() {
       e.stopPropagation();
       removeSession(s.id);
       await store.del(playSaveKey(s.id));
+      // The unkernel VM keeps its disk overlay apart from the kv store.
+      if (IS_UNKERNEL) await (await import("./vm.js")).resetDisk(playSaveKey(s.id));
       if (signedInUser) {
         try {
           await deleteCloudSession(s.id);
@@ -174,7 +177,7 @@ form.addEventListener("submit", async (e) => {
       console.error(err);
     }
   }
-  location.href = `/play?s=${encodeURIComponent(s.id)}`;
+  location.href = appHref(`/play?s=${encodeURIComponent(s.id)}`);
 });
 
 $("session-template-cancel").onclick = () => dialog.close();

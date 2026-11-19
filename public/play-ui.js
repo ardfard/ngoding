@@ -14,6 +14,7 @@ import {
 } from "./play-sessions.js";
 import { applySharePackPlan, collectSharePack } from "./share-pack.js";
 import { resolvePlaySnapshot } from "./session-load.js";
+import { IS_UNKERNEL, homeHref } from "./base.js";
 import * as store from "./store.js";
 import { createVmStatus } from "./vm-persist.js";
 
@@ -52,7 +53,7 @@ export async function startPlay(vm) {
     if (!sessionId) sessionId = migrated.id;
   }
   if (!sessionId || !getSession(sessionId)) {
-    location.replace("/");
+    location.replace(homeHref());
     return;
   }
   const touched = touchSession(sessionId);
@@ -420,7 +421,9 @@ export async function startPlay(vm) {
     };
   }
 
-  if ($("share-btn")) {
+  // Shares fork into the v86 app, so the unkernel app (/新) has none.
+  if (IS_UNKERNEL && $("share-btn")) $("share-btn").hidden = true;
+  if ($("share-btn") && !IS_UNKERNEL) {
     const shareNote = (text, tone = "") => {
       $("share-note").textContent = text;
       $("share-note").className = `share-note ${tone}`;
@@ -529,7 +532,7 @@ export async function startPlay(vm) {
     if (editor.hasUnsaved() || vm.isDirty() || vm.isSaving()) e.preventDefault();
   });
 
-  for (const a of document.querySelectorAll('a[href="/"]')) {
+  for (const a of document.querySelectorAll(`a[href="${homeHref()}"]`)) {
     a.addEventListener("click", (e) => {
       if (!booted) return;
       if (!editor.hasUnsaved() && !vm.isDirty() && !vm.isSaving()) return;

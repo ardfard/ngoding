@@ -1,3 +1,5 @@
+import { IS_UNKERNEL } from "./base.js";
+
 async function parseJson(res) {
   const text = await res.text();
   if (!text) return null;
@@ -10,6 +12,8 @@ async function parseJson(res) {
 
 /** @returns {Promise<{ id: string, email: string } | null>} null on 401/503/error */
 export async function authMe() {
+  // Cloud saves hold v86 snapshots; the unkernel app (/新) is local-only.
+  if (IS_UNKERNEL) return null;
   try {
     const res = await fetch("/api/auth/me", { credentials: "same-origin" });
     if (res.status === 503) return null;
@@ -23,6 +27,7 @@ export async function authMe() {
 
 /** Probe whether account APIs are configured (not 503). */
 export async function accountsAvailable() {
+  if (IS_UNKERNEL) return false;
   try {
     const res = await fetch("/api/auth/me", { credentials: "same-origin" });
     return res.status !== 503;
